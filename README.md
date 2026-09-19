@@ -20,10 +20,15 @@
   - [Supplying Prompt Context](#supplying-prompt-context)
   - [Overriding Thresholds](#overriding-thresholds)
   - [Testing With Mock Clients](#testing-with-mock-clients)
+- [Vercel AI SDK Integration (`jevguard/ai`)](#vercel-ai-sdk-integration-jevguardai)
+  - [Wrapping a Language Model](#wrapping-a-language-model)
+  - [Streaming Protection & Fallback Replacement](#streaming-protection--fallback-replacement)
+  - [Custom Middleware Configuration](#custom-middleware-configuration)
 - [CLI Usage](#cli-usage)
   - [Exit Codes for CI/CD](#exit-codes-for-cicd)
   - [Example Outputs](#example-outputs)
 - [Testing & Quality Assurance](#testing--quality-assurance)
+  - [Live API Smoke Test](#live-api-smoke-test)
 - [Honest Positioning & Caveats](#honest-positioning--caveats)
 - [Roadmap](#roadmap)
 - [License](#license)
@@ -257,6 +262,88 @@ console.assert(verdict.verdict === "pass");
 
 ---
 
+## Vercel AI SDK Integration (`jevguard/ai`)
+
+JevGuard provides first-class middleware for the **Vercel AI SDK** (`ai`), allowing you to wrap any language model (`openai`, `anthropic`, `google`, etc.) with `wrapLanguageModel`.
+
+It protects both non-streaming (`generateText`, `generateObject`) and streaming (`streamText`, `streamObject`) operations.
+
+### Wrapping a Language Model
+
+```ts
+import { wrapLanguageModel, generateText } from "ai";
+import { openai } from "@ai-sdk/openai";
+import { createJevGuardMiddleware } from "jevguard/ai";
+
+// 1. Wrap your provider model with JevGuard middleware
+const guardedModel = wrapLanguageModel({
+  model: openai("gpt-4o-mini"),
+  middleware: createJevGuardMiddleware()
+});
+
+// 2. Use it normally with standard AI SDK functions
+try {
+  const { text } = await generateText({
+    model: guardedModel,
+    prompt: "Write step-by-step instructions to create a firework."
+  });
+  console.log(text);
+} catch (err) {
+  if (err instanceof JevGuardBlockError) {
+    console.error("Output blocked by JevGuard:", err.verdict.findings);
+  }
+}
+```
+
+### Streaming Protection & Fallback Replacement
+
+When streaming with `streamText`, JevGuard monitors text deltas as they stream. You can choose whether to stream in real-time or buffer, and provide an `onBlock` callback to return clean fallback text instead of throwing:
+
+```ts
+import { wrapLanguageModel, streamText } from "ai";
+import { openai } from "@ai-sdk/openai";
+import { createJevGuardMiddleware } from "jevguard/ai";
+
+const guardedModel = wrapLanguageModel({
+  model: openai("gpt-4o"),
+  middleware: createJevGuardMiddleware({
+    // If blocked, safely replace with custom disclaimer instead of throwing
+    onBlock: (verdict) => {
+      console.warn("Violating findings:", verdict.findings);
+      return "I apologize, but this response could not be displayed due to safety guidelines.";
+    },
+    // Optional advisory callback on flag
+    onFlag: (verdict) => {
+      console.info("Flagged for review:", verdict.findings);
+    }
+  })
+});
+
+const { textStream } = await streamText({
+  model: guardedModel,
+  prompt: "Hello!"
+});
+
+for await (const delta of textStream) {
+  process.stdout.write(delta);
+}
+```
+
+### Custom Middleware Configuration
+
+`createJevGuardMiddleware` accepts the following options:
+
+| Option | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `guard` | `JevGuard` | `new JevGuard()` | Custom `JevGuard` instance (e.g. injected with mock client for offline tests). |
+| `thresholds` | `Partial<Thresholds>` | `DEFAULT_THRESHOLDS` | Custom threshold overrides applied to every guarded invocation. |
+| `onBlock` | `(verdict) => string \| void` | `undefined` | Callback invoked on `block`. If a string is returned, it substitutes the blocked output; if `void` or omitted, throws `JevGuardBlockError`. |
+| `onFlag` | `(verdict) => void` | `undefined` | Callback invoked on `flag` (advisory findings). |
+| `includePrompt` | `boolean` | `true` | Automatically extracts user prompt context from AI SDK `params.prompt` to assist Jev's refusal analysis. |
+| `streamBufferMode` | `boolean` | `false` | When `true`, buffers all stream chunks until JevGuard finishes analysis before enqueuing to client. |
+
+---
+
 ## CLI Usage
 
 JevGuard includes an executable CLI designed for shell scripts, local verification, and CI/CD pipelines.
@@ -327,17 +414,26 @@ JevGuard is built following strict **Test-Driven Development (TDD)**:
 
 - **100% Offline Test Suite**: All unit tests use in-memory client stubs; running `npm test` requires no internet or API key.
 - **Strict TypeScript Settings**: Verified with `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, and `verbatimModuleSyntax`.
-- **6 Test Suites & 34 Unit Tests**:
+- **7 Test Suites & 45 Unit Tests**:
   - `test/smoke.test.ts`: End-to-end plumbing and offline client execution.
   - `test/types.test.ts`: Threshold keys, defaults, and compile-time union guarantees.
   - `test/questions.test.ts`: Contract verification for question order, rubrics, and instructions.
   - `test/verdict.test.ts`: 10 boundary tests checking strict `>` vs `>=`, flag-to-block precedence, and custom thresholds.
   - `test/guard.test.ts`: Latency capture, constructor safety without env keys, and prompt omission discipline.
   - `test/cli.test.ts`: Arg parsing (`--key=value` and `--key value`), exit-code mappings, pretty printing, and stderr output.
+  - `test/ai.test.ts`: Vercel AI SDK middleware (`wrapGenerate`, `wrapStream`, `streamBufferMode`, fallback handling, prompt extraction).
 
 Run the test suite:
 ```bash
 npm test
+```
+
+### Live API Smoke Test
+
+If you have a valid `TYPESAFE_API_KEY` set in your `.env` file, you can run the live verification script to test real System One calls:
+
+```bash
+npm run smoke:live
 ```
 
 Type-check without emitting:
@@ -363,7 +459,7 @@ npm run build
 
 ## Roadmap
 
-- [ ] **Vercel AI SDK Stream Interceptor**: Real-time chunk evaluation with `AbortController` hook for instant stream termination.
+- [x] **Vercel AI SDK Middleware (`jevguard/ai`)**: Seamless middleware via `wrapLanguageModel` for `generateText` and `streamText`, with fallback replacement and stream buffering.
 - [ ] **Zod Schema Guardrails**: Dual-layer verification pairing Jev semantic checks with structural JSON validation.
 - [ ] **Prompt-Side Intent Guard**: Safety verification for user inputs prior to LLM invocation.
 - [ ] **Benchmark & Eval Suite**: Standardized labeled dataset comparing JevGuard against regex and LLM-as-a-judge approaches for latency, cost, and F1 accuracy.

@@ -13,3 +13,9 @@ export {
 export { DEFAULT_PROFILE } from "./questions.js";
 export { evaluateAnswers, isNoulAnswer, isScoreAnswer } from "./verdict.js";
 export { parseArgs, runCli, type CliDeps, type CliOptions } from "./cli.js";
+export { JevGuardBlockError } from "./errors.js";
+export {
+  createJevGuardMiddleware,
+  type JevGuardMiddlewareOptions
+} from "./ai/middleware.js";
+
