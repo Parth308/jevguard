@@ -1,10 +1,18 @@
+import { TypeSafeClient } from "@typesafe-ai/sdk";
 import type {
   Questions,
-  SystemOneRequest,
-  SystemOneResult,
   RequestOptions,
-  Usage
+  SystemOneRequest,
+  SystemOneResult
 } from "@typesafe-ai/sdk";
+import { DEFAULT_PROFILE } from "./questions.js";
+import {
+  DEFAULT_THRESHOLDS,
+  type GuardInput,
+  type GuardVerdict,
+  type Thresholds
+} from "./types.js";
+import { evaluateAnswers } from "./verdict.js";
 
 export interface SystemOneClient {
   systemOne<const Q extends Questions>(
@@ -13,36 +21,61 @@ export interface SystemOneClient {
   ): Promise<SystemOneResult<Q>>;
 }
 
-export interface GuardInput {
-  prompt?: string;
-  response: string;
-  thresholds?: unknown;
-}
-
-export interface GuardVerdict {
-  verdict: "block" | "flag" | "pass";
-  findings: unknown[];
-  answers: unknown;
-  usage: Usage;
-  latencyMs: number;
-}
-
 export class JevGuard {
-  constructor(private readonly client?: SystemOneClient) {}
+  private clientInstance: SystemOneClient | undefined;
+  private readonly defaultThresholds: Thresholds;
+
+  constructor(client?: SystemOneClient, thresholds?: Thresholds) {
+    this.clientInstance = client;
+    this.defaultThresholds = thresholds
+      ? { ...DEFAULT_THRESHOLDS, ...thresholds }
+      : DEFAULT_THRESHOLDS;
+  }
+
+  private getClient(): SystemOneClient {
+    if (!this.clientInstance) {
+      this.clientInstance = new TypeSafeClient();
+    }
+    return this.clientInstance;
+  }
 
   async analyze(input: GuardInput): Promise<GuardVerdict> {
-    if (this.client) {
-      await this.client.systemOne({
-        state: { response: input.response },
-        questions: {}
-      });
+    const mergedThresholds: Thresholds = {
+      ...this.defaultThresholds,
+      ...(input.thresholds ?? {})
+    };
+
+    const client = this.getClient();
+
+    // Strictly omit prompt property if undefined to respect exactOptionalPropertyTypes
+    const state: { response: string; prompt?: string } = {
+      response: input.response
+    };
+    if (input.prompt !== undefined) {
+      state.prompt = input.prompt;
     }
+
+    const startedAt = performance.now();
+
+    const result = await client.systemOne({
+      state,
+      questions: DEFAULT_PROFILE as unknown as Questions
+    });
+
+    const elapsed = performance.now() - startedAt;
+    const latencyMs = Math.round(elapsed * 100) / 100;
+
+    const { findings, verdict } = evaluateAnswers(
+      result.answers as unknown as Parameters<typeof evaluateAnswers>[0],
+      mergedThresholds
+    );
+
     return {
-      verdict: "pass",
-      findings: [],
-      answers: {},
-      usage: { input_tokens: 10, output_tokens: 5 },
-      latencyMs: 1
+      verdict,
+      findings,
+      answers: result.answers as unknown as GuardVerdict["answers"],
+      usage: result.usage,
+      latencyMs
     };
   }
 }
