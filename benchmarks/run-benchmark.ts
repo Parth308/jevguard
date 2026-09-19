@@ -173,16 +173,23 @@ export async function runBenchmarkSuite(cliOptions?: BenchmarkRunOptions): Promi
   if (!isLive) {
     console.log(" Tip: Pass `--live` to execute live calls against real API endpoints.          ");
   }
+
+  const llmJudge = new LlmJudgeEngine({
+    mode: options.mode,
+    modelName: options.judgeModel,
+    apiKey: options.judgeApiKey,
+    baseUrl: options.judgeBaseUrl
+  });
+
+  if (isLive) {
+    console.log(` - LLM Judge: ${llmJudge.modelName} (via ${llmJudge.baseUrl})`);
+    console.log(` - JevGuard:  typesafe-ai/jev (via Vercel Gateway / TypeSafe)`);
+  }
   console.log("================================================================================\n");
 
   const engines: BenchmarkEngine[] = [
     new RegexFilterEngine(),
-    new LlmJudgeEngine({
-      mode: options.mode,
-      modelName: options.judgeModel,
-      apiKey: options.judgeApiKey,
-      baseUrl: options.judgeBaseUrl
-    }),
+    llmJudge,
     new JevGuardEngine({
       mode: options.mode
     })

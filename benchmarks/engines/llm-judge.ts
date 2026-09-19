@@ -1,4 +1,27 @@
+import fs from "node:fs";
+import path from "node:path";
 import type { BenchmarkEngine, BenchmarkTestCase, EngineResult, ExpectedVerdict } from "../types.js";
+
+function ensureEnvLoaded(): void {
+  const envPath = path.resolve(process.cwd(), ".env");
+  if (fs.existsSync(envPath)) {
+    try {
+      const lines = fs.readFileSync(envPath, "utf-8").split("\n");
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith("#") || !trimmed) continue;
+        const match = trimmed.match(/^([A-Z0-9_]+)\s*=\s*(.*)$/);
+        if (match && match[1] && match[2]) {
+          const varName = match[1];
+          const val = match[2].replace(/^["']|["']$/g, "");
+          if (!process.env[varName]) {
+            process.env[varName] = val;
+          }
+        }
+      }
+    } catch {}
+  }
+}
 
 export interface LlmJudgeOptions {
   mode?: "simulated" | "live" | undefined;
@@ -16,26 +39,18 @@ export class LlmJudgeEngine implements BenchmarkEngine {
   readonly description: string;
   readonly isLive: boolean;
   readonly modelName: string;
+  readonly baseUrl: string;
   private readonly realModel?: any;
   private readonly apiKey?: string | undefined;
-  private readonly baseUrl: string;
   private readonly offlineSimulatedLatencyMs: number;
   private readonly costPer1kTokensUsd: number;
   private hasWarnedFallback = false;
 
   constructor(options: LlmJudgeOptions = {}) {
+    ensureEnvLoaded();
+
     this.isLive = options.isLive ?? (options.mode === "live");
-    this.modelName =
-      options.modelName ??
-      process.env["LLM_JUDGE_MODEL"] ??
-      "Qwen 2.5 32B-Instruct";
 
-    this.name = this.isLive
-      ? `LLM-as-a-Judge (${this.modelName} - Live API)`
-      : `LLM-as-a-Judge (${this.modelName} - Simulated Calibrated)`;
-
-    this.description = "Full sequential LLM judge evaluating safety guidelines via structured text prompting";
-    this.realModel = options.realModel;
     this.apiKey =
       options.apiKey ??
       process.env["LLM_JUDGE_API_KEY"] ??
@@ -43,15 +58,37 @@ export class LlmJudgeEngine implements BenchmarkEngine {
       process.env["OPENAI_API_KEY"] ??
       process.env["GROQ_API_KEY"];
 
+    const isExplicitOpenRouter =
+      Boolean(process.env["OPENROUTER_API_KEY"]) ||
+      Boolean(this.apiKey?.startsWith("sk-or-v1-"));
+    const isExplicitGroq =
+      Boolean(process.env["GROQ_API_KEY"]) ||
+      Boolean(this.apiKey?.startsWith("gsk_"));
+
     this.baseUrl =
       options.baseUrl ??
       process.env["LLM_JUDGE_BASE_URL"] ??
-      (process.env["OPENROUTER_API_KEY"]
+      process.env["OPENAI_BASE_URL"] ??
+      process.env["OPENROUTER_BASE_URL"] ??
+      (isExplicitOpenRouter
         ? "https://openrouter.ai/api/v1"
-        : process.env["GROQ_API_KEY"]
+        : isExplicitGroq
         ? "https://api.groq.com/openai/v1"
         : "https://api.openai.com/v1");
 
+    this.modelName =
+      options.modelName ??
+      process.env["LLM_JUDGE_MODEL"] ??
+      process.env["MODEL"] ??
+      process.env["OPENAI_MODEL"] ??
+      (isExplicitOpenRouter ? "qwen/qwen-2.5-72b-instruct" : "qwen-2.5-32b-instruct");
+
+    this.name = this.isLive
+      ? `LLM-as-a-Judge (${this.modelName} - Live API)`
+      : `LLM-as-a-Judge (${this.modelName} - Simulated Calibrated)`;
+
+    this.description = "Full sequential LLM judge evaluating safety guidelines via structured text prompting";
+    this.realModel = options.realModel;
     this.offlineSimulatedLatencyMs = options.offlineSimulatedLatencyMs ?? 1850;
     // Default Qwen 2.5 32B / frontier token pricing: ~$0.015 / 1k output & prompt tokens
     this.costPer1kTokensUsd = options.costPer1kTokensUsd ?? 0.015;
@@ -103,7 +140,7 @@ export class LlmJudgeEngine implements BenchmarkEngine {
         if (!this.hasWarnedFallback) {
           this.hasWarnedFallback = true;
           console.warn(
-            `\n[LLM Judge Warning] Live mode requested but no API key found (set OPENAI_API_KEY, OPENROUTER_API_KEY, or LLM_JUDGE_API_KEY). Running in calibrated simulation mode.`
+            `\n[LLM Judge Warning] Live mode requested but no API key found in .env (set OPENAI_API_KEY, OPENROUTER_API_KEY, or LLM_JUDGE_API_KEY). Running in calibrated simulation mode.`
           );
         }
       }
@@ -114,7 +151,6 @@ export class LlmJudgeEngine implements BenchmarkEngine {
     const estimatedTokens = 185;
     const costEstimateUsd = (estimatedTokens / 1000) * this.costPer1kTokensUsd;
 
-    // Standard LLM judges are very strong at natural language reasoning
     const predictedVerdict: ExpectedVerdict = testCase.expectedVerdict;
 
     return {
