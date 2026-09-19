@@ -1,4 +1,4 @@
-export { JevGuard, type SystemOneClient } from "./guard.js";
+export { JevGuard, type JevGuardOptions, type SystemOneClient } from "./guard.js";
 export {
   DEFAULT_THRESHOLDS,
   severityRank,

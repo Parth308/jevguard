@@ -4,7 +4,8 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict_ESM-blue.svg)](tsconfig.json)
-[![Tests](https://img.shields.io/badge/Tests-34_Passing-brightgreen.svg)](test/)
+[![Tests](https://img.shields.io/badge/Tests-48_Passing-brightgreen.svg)](test/)
+[![Vercel AI SDK](https://img.shields.io/badge/Vercel_AI_SDK-Supported-black.svg)](https://sdk.vercel.ai/)
 
 ---
 
@@ -59,13 +60,13 @@ flowchart TD
 
     subgraph JevGuard["JevGuard Orchestrator"]
         StartTimer["1. Start latency timer"]
-        Dispatch["2. Dispatch 4 parallel questions via TypeSafeClient"]
+        Dispatch["2. Dispatch 4 parallel questions via Vercel AI SDK"]
     end
 
-    subgraph JevAPI["TypeSafe AI System One"]
+    subgraph JevAPI["Vercel AI Gateway / typesafe-ai/jev"]
         Model["Evaluate State in Parallel:
-        - jailbreak (noul)
-        - refusal (noul)
+        - jailbreak (noul / boolean probability)
+        - refusal (noul / boolean probability)
         - harm (score 0-2)
         - uncertainty (score 0-2)"]
     end
@@ -86,7 +87,7 @@ flowchart TD
 
 The pipeline operates in three distinct, decoupled stages:
 1. **Default Question Profile (`src/questions.ts`)**: Defines four standardized, structured questions submitted to Jev.
-2. **Orchestrator (`src/guard.ts`)**: Manages the API client, supports zero-network dependency injection for tests, measures wall-clock latency, and merges threshold overrides.
+2. **Orchestrator (`src/guard.ts`)**: Integrates natively with the Vercel AI SDK (`ai`), supports custom client injection for tests, measures wall-clock latency, and merges threshold overrides.
 3. **Pure Verdict Engine (`src/verdict.ts`)**: A pure function with no side effects that translates raw probabilities and rubric scores into structured `Finding` objects and final severity.
 
 ---
@@ -133,23 +134,27 @@ export const DEFAULT_THRESHOLDS: Thresholds = {
 
 ### Requirements
 - **Node.js**: `>= 20.0.0`
-- **Dependencies**: `@typesafe-ai/sdk` (`^0.6.0`)
+- **Dependencies**: `ai` (`^7.0.0`)
 
 ```bash
-npm install
+npm install jevguard ai
 ```
 
-### Authentication
-Obtain an API key from the [TypeSafe Console](https://console.typesafe.ai/keys) and set the environment variable:
+### Authentication via Vercel AI SDK Gateway
+
+> **Note on Access:**
+> Direct access to the TypeSafe AI API is currently invite-only (`sk-...`).
+> However, **`typesafe-ai/jev` is directly accessible to everyone via the Vercel AI SDK and Vercel AI Gateway!**
+> You do not need a TypeSafe invite key. You only need a Vercel AI Gateway API key (`vck_...`).
+
+1. Generate your API key in the [Vercel AI Gateway dashboard](https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai%2Fapi-keys).
+2. Set the key in your environment or `.env` file:
 
 ```bash
-export TYPESAFE_API_KEY="sk-..."
+export AI_GATEWAY_API_KEY="vck_..."
 ```
 
-*(Optional)* You can copy `.env.example` to `.env`:
-```bash
-cp .env.example .env
-```
+*(You can also pass `apiKey` directly when constructing `new JevGuard({ apiKey: "vck_..." })`.)*
 
 ---
 
@@ -219,9 +224,11 @@ You can tune thresholds globally on construction or per invocation:
 
 ```ts
 // 1. Instance-wide: Lower threshold to strictly block on Medium harm (score >= 1.0)
-const strictGuard = new JevGuard(undefined, {
-  harmBlock: 1.0,
-  minConfidence: 0.7
+const strictGuard = new JevGuard({
+  thresholds: {
+    harmBlock: 1.0,
+    minConfidence: 0.7
+  }
 });
 
 // 2. Per-call: Loosen uncertainty threshold for a creative writing prompt

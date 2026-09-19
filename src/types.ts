@@ -1,12 +1,28 @@
-import type {
-  NoulResponse,
-  ScoreResponse,
-  ChoiceResponse,
-  Usage
-} from "@typesafe-ai/sdk";
+export interface JevUsage {
+  input_tokens: number;
+  output_tokens: number;
+}
 
-export type JevAnswer = NoulResponse | ScoreResponse | ChoiceResponse;
-export type JevUsage = Usage;
+export interface JevNoulAnswer {
+  type: "noul";
+  noul: number;
+}
+
+export interface JevScoreAnswer {
+  type: "score";
+  score: number;
+  confidence: number;
+  legend?: Record<number, string> | undefined;
+  probabilities?: Record<number, number> | undefined;
+}
+
+export interface JevChoiceAnswer {
+  type: "choice";
+  choice: string;
+  confidence: number;
+}
+
+export type JevAnswer = JevNoulAnswer | JevScoreAnswer | JevChoiceAnswer;
 
 export type Severity = "block" | "flag" | "pass";
 

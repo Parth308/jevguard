@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import type { LanguageModelV1, LanguageModelV1CallOptions, LanguageModelV1StreamPart } from "ai";
 import { createJevGuardMiddleware } from "../src/ai/middleware.js";
 import { extractPromptText } from "../src/ai/utils.js";
 import { JevGuardBlockError } from "../src/errors.js";
@@ -17,12 +16,12 @@ function makeStubClient(overrides?: { answers?: any[] }): SystemOneClient {
           { type: "score", score: 0, confidence: 0.9 }
         ],
         usage: { input_tokens: 10, output_tokens: 5 }
-      } as any;
+      };
     }
   };
 }
 
-function makeDummyCallOptions(userPrompt = "Test prompt"): LanguageModelV1CallOptions {
+function makeDummyCallOptions(userPrompt = "Test prompt"): any {
   return {
     inputFormat: "prompt",
     mode: { type: "regular" },
@@ -33,7 +32,7 @@ function makeDummyCallOptions(userPrompt = "Test prompt"): LanguageModelV1CallOp
   };
 }
 
-function createMockModel(generatedText = "Safe response"): LanguageModelV1 {
+function createMockModel(generatedText = "Safe response"): any {
   return {
     specificationVersion: "v1",
     provider: "mock-provider",
@@ -46,9 +45,9 @@ function createMockModel(generatedText = "Safe response"): LanguageModelV1 {
       rawCall: { rawPrompt: null, rawSettings: {} }
     }),
     doStream: async () => {
-      const chunks: LanguageModelV1StreamPart[] = [
-        { type: "text-delta", textDelta: generatedText.slice(0, 4) },
-        { type: "text-delta", textDelta: generatedText.slice(4) },
+      const chunks: any[] = [
+        { type: "text-delta", textDelta: generatedText.slice(0, 4), delta: generatedText.slice(0, 4) },
+        { type: "text-delta", textDelta: generatedText.slice(4), delta: generatedText.slice(4) },
         {
           type: "finish",
           finishReason: "stop",
@@ -56,7 +55,7 @@ function createMockModel(generatedText = "Safe response"): LanguageModelV1 {
         }
       ];
 
-      const stream = new ReadableStream<LanguageModelV1StreamPart>({
+      const stream = new ReadableStream<any>({
         start(controller) {
           for (const chunk of chunks) {
             controller.enqueue(chunk);
@@ -120,7 +119,7 @@ describe("Vercel AI SDK Middleware (createJevGuardMiddleware)", () => {
         model
       });
 
-      expect(result.text).toBe("Safe and sound");
+      expect((result as any).text).toBe("Safe and sound");
     });
 
     it("throws JevGuardBlockError on hazardous output", async () => {
@@ -168,7 +167,7 @@ describe("Vercel AI SDK Middleware (createJevGuardMiddleware)", () => {
       });
 
       expect(onBlock).toHaveBeenCalledTimes(1);
-      expect(result.text).toBe("This response was safely redacted.");
+      expect((result as any).text).toBe("This response was safely redacted.");
     });
 
     it("calls onFlag callback when output triggers flag severity", async () => {
@@ -193,7 +192,7 @@ describe("Vercel AI SDK Middleware (createJevGuardMiddleware)", () => {
       });
 
       expect(onFlag).toHaveBeenCalledTimes(1);
-      expect(result.text).toBe("Uncertain speculation");
+      expect((result as any).text).toBe("Uncertain speculation");
     });
   });
 
@@ -212,7 +211,7 @@ describe("Vercel AI SDK Middleware (createJevGuardMiddleware)", () => {
       });
 
       const reader = result.stream.getReader();
-      const chunks: LanguageModelV1StreamPart[] = [];
+      const chunks: any[] = [];
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -285,7 +284,7 @@ describe("Vercel AI SDK Middleware (createJevGuardMiddleware)", () => {
       });
 
       const reader = result.stream.getReader();
-      const chunks: LanguageModelV1StreamPart[] = [];
+      const chunks: any[] = [];
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;

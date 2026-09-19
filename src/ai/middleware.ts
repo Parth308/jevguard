@@ -1,28 +1,26 @@
-import type { LanguageModelV1Middleware, LanguageModelV1StreamPart } from "ai";
+import type { LanguageModelMiddleware } from "ai";
 import { JevGuard } from "../guard.js";
 import { JevGuardBlockError } from "../errors.js";
 import type { GuardInput, GuardVerdict, Thresholds } from "../types.js";
 import { extractPromptText } from "./utils.js";
 
 export interface JevGuardMiddlewareOptions {
-  guard?: JevGuard;
-  thresholds?: Partial<Thresholds>;
-  onBlock?: (verdict: GuardVerdict) => string | void;
-  onFlag?: (verdict: GuardVerdict) => void;
-  includePrompt?: boolean;
-  streamBufferMode?: boolean;
+  guard?: JevGuard | undefined;
+  thresholds?: Partial<Thresholds> | undefined;
+  onBlock?: ((verdict: GuardVerdict) => string | void) | undefined;
+  onFlag?: ((verdict: GuardVerdict) => void) | undefined;
+  includePrompt?: boolean | undefined;
+  streamBufferMode?: boolean | undefined;
 }
 
 export function createJevGuardMiddleware(
   options: JevGuardMiddlewareOptions = {}
-): LanguageModelV1Middleware {
+): LanguageModelMiddleware {
   const guard = options.guard ?? new JevGuard();
   const includePrompt = options.includePrompt ?? true;
 
   return {
-    middlewareVersion: "v1",
-
-    wrapGenerate: async ({ doGenerate, params }) => {
+    wrapGenerate: async ({ doGenerate, params }: any) => {
       const result = await doGenerate();
       if (result.text) {
         const prompt = includePrompt ? extractPromptText(params.prompt) : undefined;
@@ -62,21 +60,19 @@ export function createJevGuardMiddleware(
       return result;
     },
 
-    wrapStream: async ({ doStream, params }) => {
+    wrapStream: async ({ doStream, params }: any) => {
       const result = await doStream();
       const prompt = includePrompt ? extractPromptText(params.prompt) : undefined;
       const bufferMode = options.streamBufferMode ?? false;
 
       let accumulatedText = "";
-      const bufferedChunks: LanguageModelV1StreamPart[] = [];
+      const bufferedChunks: any[] = [];
 
-      const transformStream = new TransformStream<
-        LanguageModelV1StreamPart,
-        LanguageModelV1StreamPart
-      >({
+      const transformStream = new TransformStream<any, any>({
         transform(chunk, controller) {
-          if (chunk.type === "text-delta" && typeof chunk.textDelta === "string") {
-            accumulatedText += chunk.textDelta;
+          const delta = chunk.delta ?? chunk.textDelta;
+          if (chunk.type === "text-delta" && typeof delta === "string") {
+            accumulatedText += delta;
           }
           if (bufferMode) {
             bufferedChunks.push(chunk);
@@ -105,7 +101,9 @@ export function createJevGuardMiddleware(
                   if (bufferMode) {
                     controller.enqueue({
                       type: "text-delta",
-                      textDelta: fallback
+                      delta: fallback,
+                      textDelta: fallback,
+                      id: "jevguard-fallback"
                     });
                     controller.enqueue({
                       type: "finish",
