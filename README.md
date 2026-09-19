@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict_ESM-blue.svg)](tsconfig.json)
-[![Tests](https://img.shields.io/badge/Tests-48_Passing-brightgreen.svg)](test/)
+[![Tests](https://img.shields.io/badge/Tests-64_Passing-brightgreen.svg)](test/)
 [![Vercel AI SDK](https://img.shields.io/badge/Vercel_AI_SDK-Supported-black.svg)](https://sdk.vercel.ai/)
 
 ---
@@ -15,12 +15,16 @@
 - [Architecture & Pipeline](#architecture--pipeline)
 - [Default Profile & Threshold Mechanics](#default-profile--threshold-mechanics)
 - [Installation & Setup](#installation--setup)
+  - [Dual Backend Authentication](#dual-backend-authentication)
 - [Library Usage](#library-usage)
   - [Basic Example](#basic-example)
   - [Handling Verdicts & Findings](#handling-verdicts--findings)
   - [Supplying Prompt Context](#supplying-prompt-context)
   - [Overriding Thresholds](#overriding-thresholds)
   - [Testing With Mock Clients](#testing-with-mock-clients)
+- [Zod Schema Guardrails (`guard.analyzeJson`)](#zod-schema-guardrails-guardanalyzejson)
+  - [Dual-Layer Verification](#dual-layer-verification)
+  - [Targeting Specific Fields](#targeting-specific-fields)
 - [Vercel AI SDK Integration (`jevguard/ai`)](#vercel-ai-sdk-integration-jevguardai)
   - [Wrapping a Language Model](#wrapping-a-language-model)
   - [Streaming Protection & Fallback Replacement](#streaming-protection--fallback-replacement)
@@ -140,21 +144,23 @@ export const DEFAULT_THRESHOLDS: Thresholds = {
 npm install jevguard ai
 ```
 
-### Authentication via Vercel AI SDK Gateway
+### Dual Backend Authentication
 
-> **Note on Access:**
-> Direct access to the TypeSafe AI API is currently invite-only (`sk-...`).
-> However, **`typesafe-ai/jev` is directly accessible to everyone via the Vercel AI SDK and Vercel AI Gateway!**
-> You do not need a TypeSafe invite key. You only need a Vercel AI Gateway API key (`vck_...`).
+JevGuard supports **both** evaluation backends seamlessly:
 
-1. Generate your API key in the [Vercel AI Gateway dashboard](https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai%2Fapi-keys).
-2. Set the key in your environment or `.env` file:
-
+#### Option A: Vercel AI Gateway (Default / Public)
+Anyone can access `typesafe-ai/jev` through Vercel AI Gateway using a Vercel AI key without needing a private TypeSafe invite:
 ```bash
 export AI_GATEWAY_API_KEY="vck_..."
 ```
+*(Or pass `new JevGuard({ apiKey: "vck_...", provider: "gateway" })`)*
 
-*(You can also pass `apiKey` directly when constructing `new JevGuard({ apiKey: "vck_..." })`.)*
+#### Option B: Direct TypeSafe AI SDK (Invite Keys)
+If you have an invite key from TypeSafe AI (`sk-...`), set:
+```bash
+export TYPESAFE_API_KEY="sk-..."
+```
+JevGuard automatically detects `sk-...` keys and connects via `@typesafe-ai/sdk` (or pass `new JevGuard({ apiKey: "sk-...", provider: "typesafe" })`).
 
 ---
 
@@ -265,6 +271,62 @@ const mockClient: SystemOneClient = {
 const testGuard = new JevGuard(mockClient);
 const verdict = await testGuard.analyze({ response: "Harmless text" });
 console.assert(verdict.verdict === "pass");
+```
+
+---
+
+## Zod Schema Guardrails (`guard.analyzeJson`)
+
+When generating structured JSON from LLMs, JevGuard provides a **dual-layer verification pipeline**:
+1. **Structural Layer (Zod)**: Ensures the model output is valid JSON and conforms strictly to your Zod schema (with precise field-level path error reporting).
+2. **Semantic Layer (Jev)**: Evaluates the content in parallel against Jev's 4 safety dimensions (jailbreak, refusal, harm, uncertainty).
+
+### Dual-Layer Verification
+
+```ts
+import { JevGuard } from "jevguard";
+import { z } from "zod";
+
+const UserProfileSchema = z.object({
+  username: z.string().min(3),
+  bio: z.string().max(280),
+  role: z.enum(["member", "moderator", "admin"])
+});
+
+const guard = new JevGuard();
+
+// Raw LLM response (supports raw JSON or markdown code blocks: ```json ... ```)
+const llmResponse = JSON.stringify({
+  username: "alice_crypto",
+  bio: "Blockchain enthusiast exploring zero-knowledge proofs.",
+  role: "member"
+});
+
+const result = await guard.analyzeJson({
+  response: llmResponse,
+  schema: UserProfileSchema
+});
+
+if (result.schemaValid && result.verdict === "pass") {
+  // Strongly typed: result.data is inferred as { username: string, bio: string, role: "member" | "moderator" | "admin" }
+  console.log("Verified Safe User:", result.data.username);
+} else if (!result.schemaValid) {
+  console.error("Schema syntax/validation violations:", result.schemaErrors);
+} else {
+  console.warn("Schema was valid, but Jev flagged semantic risks:", result.findings);
+}
+```
+
+### Targeting Specific Fields
+
+If your schema contains metadata (IDs, timestamps, numbers) and you only want Jev to semantically evaluate specific text fields:
+
+```ts
+const result = await guard.analyzeJson({
+  response: llmResponse,
+  schema: UserProfileSchema,
+  targetFields: ["bio"] // Only evaluates 'bio' through Jev
+});
 ```
 
 ---
@@ -467,7 +529,7 @@ npm run build
 ## Roadmap
 
 - [x] **Vercel AI SDK Middleware (`jevguard/ai`)**: Seamless middleware via `wrapLanguageModel` for `generateText` and `streamText`, with fallback replacement and stream buffering.
-- [ ] **Zod Schema Guardrails**: Dual-layer verification pairing Jev semantic checks with structural JSON validation.
+- [x] **Zod Schema Guardrails**: Dual-layer verification pairing Jev semantic checks with structural JSON validation.
 - [ ] **Prompt-Side Intent Guard**: Safety verification for user inputs prior to LLM invocation.
 - [ ] **Benchmark & Eval Suite**: Standardized labeled dataset comparing JevGuard against regex and LLM-as-a-judge approaches for latency, cost, and F1 accuracy.
 - [ ] **Global Binary Release**: Standalone binary package published to npm (`npx jevguard`).

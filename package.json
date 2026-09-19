@@ -34,10 +34,14 @@
     "@typesafe-ai/sdk": "^0.6.0"
   },
   "peerDependencies": {
-    "ai": ">=3.4.0 || >=4.0.0 || >=7.0.0"
+    "ai": ">=3.4.0 || >=4.0.0 || >=7.0.0",
+    "zod": ">=3.20.0 || >=4.0.0"
   },
   "peerDependenciesMeta": {
     "ai": {
+      "optional": true
+    },
+    "zod": {
       "optional": true
     }
   },
@@ -45,6 +49,7 @@
     "@types/node": "^22.0.0",
     "tsx": "^4.0.0",
     "typescript": "^5.6.0",
-    "vitest": "^2.0.0"
+    "vitest": "^2.0.0",
+    "zod": "^3.23.8"
   }
 }

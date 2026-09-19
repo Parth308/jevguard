@@ -1,10 +1,16 @@
 import { createGateway, experimental_evaluate, gateway } from "ai";
 import { DEFAULT_PROFILE } from "./questions.js";
 import {
+  extractTextForGuard,
+  validateJsonWithSchema
+} from "./schema.js";
+import {
   DEFAULT_THRESHOLDS,
   type GuardInput,
   type GuardVerdict,
   type JevAnswer,
+  type JsonGuardInput,
+  type JsonGuardVerdict,
   type Thresholds
 } from "./types.js";
 import { evaluateAnswers } from "./verdict.js";
@@ -29,6 +35,7 @@ export interface JevGuardOptions {
   thresholds?: Thresholds | undefined;
   model?: string | undefined;
   apiKey?: string | undefined;
+  provider?: "gateway" | "typesafe" | "auto" | undefined;
 }
 
 export class JevGuard {
@@ -36,6 +43,7 @@ export class JevGuard {
   private readonly defaultThresholds: Thresholds;
   private readonly model: string;
   private readonly apiKey?: string | undefined;
+  private readonly provider?: "gateway" | "typesafe" | "auto" | undefined;
 
   constructor(options?: JevGuardOptions);
   constructor(client?: SystemOneClient, thresholds?: Thresholds);
@@ -61,6 +69,7 @@ export class JevGuard {
         process.env["AI_GATEWAY_API_KEY"] ||
         process.env["TYPESAFE_API_KEY"] ||
         process.env["VERCEL_AI_GATEWAY_KEY"];
+      this.provider = opts.provider;
     } else {
       this.defaultThresholds = thresholds
         ? { ...DEFAULT_THRESHOLDS, ...thresholds }
@@ -89,7 +98,24 @@ export class JevGuard {
 
     const startedAt = performance.now();
 
-    // If an injected client was supplied (e.g. for unit testing or custom mock), use it
+    // If no client provided, check if direct TypeSafe provider was requested or sk- key is present
+    if (
+      !this.clientInstance &&
+      (this.provider === "typesafe" || (!this.provider && this.apiKey?.startsWith("sk-")))
+    ) {
+      try {
+        const { TypeSafeClient } = await import("@typesafe-ai/sdk");
+        const clientOptions: { apiKey?: string } = {};
+        if (this.apiKey) {
+          clientOptions.apiKey = this.apiKey;
+        }
+        this.clientInstance = new TypeSafeClient(clientOptions) as unknown as SystemOneClient;
+      } catch {
+        // Fall through to Vercel AI SDK Gateway if @typesafe-ai/sdk is not available
+      }
+    }
+
+    // If an injected or direct client was supplied (e.g. for unit testing or direct TypeSafe API), use it
     if (this.clientInstance) {
       const request: {
         state: { response: string; prompt?: string };
@@ -211,6 +237,56 @@ export class JevGuard {
         output_tokens: res.usage?.outputTokens ?? 0
       },
       latencyMs
+    };
+  }
+
+  async analyzeJson<T>(input: JsonGuardInput<T>): Promise<JsonGuardVerdict<T>> {
+    const validation = validateJsonWithSchema(input.response, input.schema);
+
+    if (!validation.success) {
+      const issuesSummary = validation.errors
+        .map((e) => `${e.path}: ${e.message}`)
+        .join("; ");
+
+      return {
+        verdict: "block",
+        findings: [
+          {
+            rule: "schema_validation",
+            severity: "block",
+            message: "Response failed JSON schema validation.",
+            detail: issuesSummary
+          }
+        ],
+        schemaValid: false,
+        schemaErrors: validation.errors,
+        answers: {},
+        usage: { input_tokens: 0, output_tokens: 0 },
+        latencyMs: 0
+      };
+    }
+
+    const textToEvaluate = extractTextForGuard(validation.data, input.targetFields);
+
+    const semanticInput: GuardInput = {
+      response: textToEvaluate
+    };
+    if (input.prompt !== undefined) {
+      semanticInput.prompt = input.prompt;
+    }
+    if (input.model !== undefined) {
+      semanticInput.model = input.model;
+    }
+    if (input.thresholds !== undefined) {
+      semanticInput.thresholds = input.thresholds;
+    }
+
+    const semanticVerdict = await this.analyze(semanticInput);
+
+    return {
+      ...semanticVerdict,
+      data: validation.data,
+      schemaValid: true
     };
   }
 }

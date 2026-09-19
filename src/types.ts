@@ -76,3 +76,35 @@ export interface GuardVerdict {
   usage: JevUsage;
   latencyMs: number;
 }
+
+export interface SchemaErrorDetail {
+  path: string;
+  message: string;
+}
+
+export type ZodSafeParseSuccess<T> = { success: true; data: T };
+export type ZodSafeParseError = {
+  success: false;
+  error: {
+    issues?: Array<{ path?: readonly unknown[] | undefined; message?: string | undefined }> | undefined;
+    errors?: Array<{ path?: readonly unknown[] | undefined; message?: string | undefined }> | undefined;
+    message?: string | undefined;
+  };
+};
+
+export type ZodSafeParseResult<T> = ZodSafeParseSuccess<T> | ZodSafeParseError;
+
+export interface ZodTypeLike<T> {
+  safeParse(data: unknown): ZodSafeParseResult<T>;
+}
+
+export interface JsonGuardInput<T> extends GuardInput {
+  schema: ZodTypeLike<T>;
+  targetFields?: Array<keyof T | string> | undefined;
+}
+
+export interface JsonGuardVerdict<T> extends GuardVerdict {
+  data?: T | undefined;
+  schemaValid: boolean;
+  schemaErrors?: SchemaErrorDetail[] | undefined;
+}
