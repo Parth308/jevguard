@@ -102,3 +102,31 @@ describe("Benchmark Engines Interface", () => {
     expect(table).toContain("Regex / Keyword Heuristics");
   });
 });
+
+describe("Benchmark Dataset & CLI Configuration", () => {
+  it("validates all dataset cases adhere to required schema", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const raw = fs.readFileSync(path.resolve(process.cwd(), "benchmarks/dataset.json"), "utf-8");
+    const dataset: BenchmarkTestCase[] = JSON.parse(raw);
+
+    expect(dataset.length).toBeGreaterThanOrEqual(50);
+    for (const tc of dataset) {
+      expect(tc.id).toBeDefined();
+      expect(["benign", "prompt_injection", "jailbreak", "harm", "subtle_adversarial", "uncertainty", "refusal"]).toContain(tc.category);
+      expect(["pass", "block", "flag"]).toContain(tc.expectedVerdict);
+      expect(tc.input.response).toBeDefined();
+    }
+  });
+
+  it("parses CLI flags correctly", async () => {
+    const { parseCliArgs } = await import("../benchmarks/run-benchmark.js");
+    const opts = parseCliArgs(["--live", "--judge-model=qwen-2.5-32b", "--limit=10"]);
+    expect(opts.mode).toBe("live");
+    expect(opts.judgeModel).toBe("qwen-2.5-32b");
+    expect(opts.limit).toBe(10);
+
+    const simOpts = parseCliArgs(["--simulated"]);
+    expect(simOpts.mode).toBe("simulated");
+  });
+});

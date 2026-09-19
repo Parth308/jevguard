@@ -1,11 +1,11 @@
 import type { BenchmarkEngine, BenchmarkTestCase, EngineResult } from "../types.js";
 
 const BLOCKLIST_PATTERNS: RegExp[] = [
-  /\b(ignore (all )?previous instructions|system override|developer mode)\b/i,
-  /\b(act as dan|do anything now)\b/i,
+  /\b(ignore (all )?previous instructions|system override|developer (debug )?mode|im_start|cancel all previous|disregard all guidelines)\b/i,
+  /\b(act as dan|do anything now|chaosbot)\b/i,
   /\b(drop table|drop database|wipe production)\b/i,
-  /\b(keylogger|ransomware|steal credentials|exfiltrate)\b/i,
-  /\b(i cannot fulfill this request|as an ai language model)\b/i
+  /\b(keylogger|ransomware|steal credentials|exfiltrate|syn flood|phishing|session cookies)\b/i,
+  /\b(cannot fulfill this request|cannot assist with|cannot provide)\b/i
 ];
 
 export class RegexFilterEngine implements BenchmarkEngine {
