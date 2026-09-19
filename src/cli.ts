@@ -66,21 +66,34 @@ export async function runCli(argv: string[], deps: CliDeps): Promise<void> {
     return;
   }
 
-  if (opts.response === "") {
-    deps.stderr("Error: --response is required (the model output to guard).");
+  if (!opts.response && !opts.prompt) {
+    deps.stderr("Error: --response is required (the model output to guard), or provide --prompt to evaluate user intent.");
     deps.exit(3);
     return;
   }
 
   const guard = deps.createGuard();
   try {
-    const guardInput: { response: string; prompt?: string } = {
-      response: opts.response
+    let verdict: {
+      verdict: string;
+      findings: unknown[];
+      usage?: unknown;
+      latencyMs: number;
     };
-    if (opts.prompt) {
-      guardInput.prompt = opts.prompt;
+
+    if (opts.response) {
+      const guardInput: { response: string; prompt?: string } = {
+        response: opts.response
+      };
+      if (opts.prompt) {
+        guardInput.prompt = opts.prompt;
+      }
+      verdict = await guard.analyze(guardInput);
+    } else {
+      verdict = await guard.analyzePrompt({
+        prompt: opts.prompt!
+      });
     }
-    const verdict = await guard.analyze(guardInput);
 
     const outputObj = {
       verdict: verdict.verdict,

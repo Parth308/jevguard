@@ -44,6 +44,22 @@ export const DEFAULT_THRESHOLDS: Thresholds = {
   minConfidence: 0.5
 };
 
+export interface PromptThresholds {
+  injectionBlock: number; // noul ratio above this => block
+  jailbreakBlock: number; // noul ratio above this => block
+  harmBlock: number;      // harm score >= this => block
+  harmFlag: number;       // harm score >= this (and confident) => flag
+  minConfidence: number;  // min score confidence for flag-level findings
+}
+
+export const DEFAULT_PROMPT_THRESHOLDS: PromptThresholds = {
+  injectionBlock: 0.5,
+  jailbreakBlock: 0.5,
+  harmBlock: 1.5,
+  harmFlag: 0.8,
+  minConfidence: 0.5
+};
+
 export function severityRank(severity: Severity): number {
   switch (severity) {
     case "block":
@@ -70,6 +86,20 @@ export interface GuardInput {
 }
 
 export interface GuardVerdict {
+  verdict: Severity;
+  findings: Finding[];
+  answers: Record<string, JevAnswer>;
+  usage: JevUsage;
+  latencyMs: number;
+}
+
+export interface PromptGuardInput {
+  prompt: string;
+  model?: string | undefined;
+  thresholds?: Partial<PromptThresholds> | undefined;
+}
+
+export interface PromptGuardVerdict {
   verdict: Severity;
   findings: Finding[];
   answers: Record<string, JevAnswer>;

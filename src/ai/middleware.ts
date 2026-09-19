@@ -1,7 +1,13 @@
 import type { LanguageModelMiddleware } from "ai";
 import { JevGuard } from "../guard.js";
 import { JevGuardBlockError } from "../errors.js";
-import type { GuardInput, GuardVerdict, Thresholds } from "../types.js";
+import type {
+  GuardInput,
+  GuardVerdict,
+  PromptGuardVerdict,
+  PromptThresholds,
+  Thresholds
+} from "../types.js";
 import { extractPromptText } from "./utils.js";
 
 export interface JevGuardMiddlewareOptions {
@@ -11,6 +17,9 @@ export interface JevGuardMiddlewareOptions {
   onFlag?: ((verdict: GuardVerdict) => void) | undefined;
   includePrompt?: boolean | undefined;
   streamBufferMode?: boolean | undefined;
+  guardPrompt?: boolean | undefined;
+  promptThresholds?: Partial<PromptThresholds> | undefined;
+  onPromptBlock?: ((verdict: PromptGuardVerdict) => string | void) | undefined;
 }
 
 export function createJevGuardMiddleware(
@@ -21,9 +30,38 @@ export function createJevGuardMiddleware(
 
   return {
     wrapGenerate: async ({ doGenerate, params }: any) => {
+      const promptText = extractPromptText(params.prompt);
+
+      // Pre-flight prompt intent check before upstream LLM call
+      if (options.guardPrompt && promptText) {
+        const promptVerdict = await guard.analyzePrompt({
+          prompt: promptText,
+          ...(options.promptThresholds ? { thresholds: options.promptThresholds } : {})
+        });
+
+        if (promptVerdict.verdict === "block") {
+          if (options.onPromptBlock) {
+            const fallback = options.onPromptBlock(promptVerdict);
+            if (typeof fallback === "string") {
+              return {
+                text: fallback,
+                finishReason: "stop",
+                usage: { promptTokens: 0, completionTokens: 0 },
+                rawCall: { rawPrompt: null, rawSettings: {} }
+              };
+            }
+          }
+          const reasons = promptVerdict.findings.map((f) => f.message).join("; ");
+          throw new JevGuardBlockError(
+            `Prompt blocked by JevGuard: ${reasons}`,
+            promptVerdict as unknown as GuardVerdict
+          );
+        }
+      }
+
       const result = await doGenerate();
       if (result.text) {
-        const prompt = includePrompt ? extractPromptText(params.prompt) : undefined;
+        const prompt = includePrompt ? promptText : undefined;
         const guardInput: GuardInput = {
           response: result.text
         };
@@ -61,8 +99,51 @@ export function createJevGuardMiddleware(
     },
 
     wrapStream: async ({ doStream, params }: any) => {
+      const promptText = extractPromptText(params.prompt);
+
+      // Pre-flight prompt intent check before upstream streaming call
+      if (options.guardPrompt && promptText) {
+        const promptVerdict = await guard.analyzePrompt({
+          prompt: promptText,
+          ...(options.promptThresholds ? { thresholds: options.promptThresholds } : {})
+        });
+
+        if (promptVerdict.verdict === "block") {
+          if (options.onPromptBlock) {
+            const fallback = options.onPromptBlock(promptVerdict);
+            if (typeof fallback === "string") {
+              const fallbackStream = new ReadableStream({
+                start(controller) {
+                  controller.enqueue({
+                    type: "text-delta",
+                    delta: fallback,
+                    textDelta: fallback,
+                    id: "jevguard-prompt-fallback"
+                  });
+                  controller.enqueue({
+                    type: "finish",
+                    finishReason: "stop",
+                    usage: { promptTokens: 0, completionTokens: 0 }
+                  });
+                  controller.close();
+                }
+              });
+              return {
+                stream: fallbackStream,
+                rawCall: { rawPrompt: null, rawSettings: {} }
+              };
+            }
+          }
+          const reasons = promptVerdict.findings.map((f) => f.message).join("; ");
+          throw new JevGuardBlockError(
+            `Prompt blocked by JevGuard: ${reasons}`,
+            promptVerdict as unknown as GuardVerdict
+          );
+        }
+      }
+
       const result = await doStream();
-      const prompt = includePrompt ? extractPromptText(params.prompt) : undefined;
+      const prompt = includePrompt ? promptText : undefined;
       const bufferMode = options.streamBufferMode ?? false;
 
       let accumulatedText = "";

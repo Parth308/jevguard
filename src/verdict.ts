@@ -1,4 +1,4 @@
-import type { Finding, JevAnswer, Severity, Thresholds } from "./types.js";
+import type { Finding, JevAnswer, PromptThresholds, Severity, Thresholds } from "./types.js";
 import { severityRank } from "./types.js";
 
 export interface NoulAnswerShape {
@@ -123,3 +123,83 @@ export function evaluateAnswers(
 
   return { findings, verdict };
 }
+
+export function evaluatePromptAnswers(
+  answers: readonly JevAnswer[] | JevAnswer[] | Record<string, JevAnswer>,
+  thresholds: PromptThresholds
+): { findings: Finding[]; verdict: Severity } {
+  const findings: Finding[] = [];
+
+  let promptInjection: unknown;
+  let jailbreakIntent: unknown;
+  let harmIntent: unknown;
+
+  if (Array.isArray(answers)) {
+    promptInjection = answers[0];
+    jailbreakIntent = answers[1];
+    harmIntent = answers[2];
+  } else if (typeof answers === "object" && answers !== null) {
+    promptInjection =
+      (answers as Record<string, JevAnswer>)["prompt_injection"] ??
+      (answers as Record<string, JevAnswer>)["injection"];
+    jailbreakIntent =
+      (answers as Record<string, JevAnswer>)["jailbreak_intent"] ??
+      (answers as Record<string, JevAnswer>)["jailbreak"];
+    harmIntent =
+      (answers as Record<string, JevAnswer>)["harm_intent"] ??
+      (answers as Record<string, JevAnswer>)["harm"];
+  }
+
+  // 1. Prompt Injection rule: Noul rule fires on strict >
+  if (isNoulAnswer(promptInjection) && promptInjection.noul > thresholds.injectionBlock) {
+    findings.push({
+      rule: "prompt_injection",
+      severity: "block",
+      message: "Prompt attempts to hijack instructions or override system rules.",
+      detail: `prompt_injection ratio ${promptInjection.noul} exceeded threshold ${thresholds.injectionBlock}`
+    });
+  }
+
+  // 2. Jailbreak Intent rule: Noul rule fires on strict >
+  if (isNoulAnswer(jailbreakIntent) && jailbreakIntent.noul > thresholds.jailbreakBlock) {
+    findings.push({
+      rule: "jailbreak_intent",
+      severity: "block",
+      message: "Prompt attempts to bypass safety rules or coerce an unrestricted persona.",
+      detail: `jailbreak_intent ratio ${jailbreakIntent.noul} exceeded threshold ${thresholds.jailbreakBlock}`
+    });
+  }
+
+  // 3. Harm Intent rule: Score rules fire on >=
+  if (isScoreAnswer(harmIntent)) {
+    if (harmIntent.score >= thresholds.harmBlock) {
+      findings.push({
+        rule: "harm_intent",
+        severity: "block",
+        message: "Prompt requests potentially dangerous or harmful actions.",
+        detail: `harm_intent score ${harmIntent.score} exceeded block threshold ${thresholds.harmBlock}`
+      });
+    } else if (
+      harmIntent.score >= thresholds.harmFlag &&
+      harmIntent.confidence >= thresholds.minConfidence
+    ) {
+      findings.push({
+        rule: "harm_intent",
+        severity: "flag",
+        message: "Prompt contains sensitive or concerning intent requiring review.",
+        detail: `harm_intent score ${harmIntent.score} (conf ${harmIntent.confidence}) reached flag threshold ${thresholds.harmFlag}`
+      });
+    }
+  }
+
+  // Compute verdict with severity precedence (block > flag > pass)
+  let verdict: Severity = "pass";
+  for (const f of findings) {
+    if (severityRank(f.severity) > severityRank(verdict)) {
+      verdict = f.severity;
+    }
+  }
+
+  return { findings, verdict };
+}
+

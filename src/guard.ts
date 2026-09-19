@@ -1,19 +1,23 @@
 import { createGateway, experimental_evaluate, gateway } from "ai";
-import { DEFAULT_PROFILE } from "./questions.js";
+import { DEFAULT_PROFILE, DEFAULT_PROMPT_PROFILE } from "./questions.js";
 import {
   extractTextForGuard,
   validateJsonWithSchema
 } from "./schema.js";
 import {
+  DEFAULT_PROMPT_THRESHOLDS,
   DEFAULT_THRESHOLDS,
   type GuardInput,
   type GuardVerdict,
   type JevAnswer,
   type JsonGuardInput,
   type JsonGuardVerdict,
+  type PromptGuardInput,
+  type PromptGuardVerdict,
+  type PromptThresholds,
   type Thresholds
 } from "./types.js";
-import { evaluateAnswers } from "./verdict.js";
+import { evaluateAnswers, evaluatePromptAnswers } from "./verdict.js";
 
 export interface SystemOneClient {
   systemOne(
@@ -287,6 +291,141 @@ export class JevGuard {
       ...semanticVerdict,
       data: validation.data,
       schemaValid: true
+    };
+  }
+
+  async analyzePrompt(input: PromptGuardInput): Promise<PromptGuardVerdict> {
+    const mergedThresholds: PromptThresholds = {
+      ...DEFAULT_PROMPT_THRESHOLDS,
+      ...(input.thresholds ?? {})
+    };
+
+    const startedAt = performance.now();
+
+    // Check if direct TypeSafe provider should be loaded
+    if (
+      !this.clientInstance &&
+      (this.provider === "typesafe" || (!this.provider && this.apiKey?.startsWith("sk-")))
+    ) {
+      try {
+        const { TypeSafeClient } = await import("@typesafe-ai/sdk");
+        const clientOptions: { apiKey?: string } = {};
+        if (this.apiKey) {
+          clientOptions.apiKey = this.apiKey;
+        }
+        this.clientInstance = new TypeSafeClient(clientOptions) as unknown as SystemOneClient;
+      } catch {
+        // Fall through to gateway
+      }
+    }
+
+    if (this.clientInstance) {
+      const request: {
+        state: { response: string };
+        questions: readonly unknown[];
+        model?: string;
+      } = {
+        state: { response: input.prompt },
+        questions: DEFAULT_PROMPT_PROFILE
+      };
+      if (input.model !== undefined) {
+        request.model = input.model;
+      }
+
+      const result = await this.clientInstance.systemOne(request);
+      const elapsed = performance.now() - startedAt;
+      const latencyMs = Math.round(elapsed * 100) / 100;
+
+      const { findings, verdict } = evaluatePromptAnswers(
+        result.answers as unknown as Parameters<typeof evaluatePromptAnswers>[0],
+        mergedThresholds
+      );
+
+      return {
+        verdict,
+        findings,
+        answers: result.answers as unknown as PromptGuardVerdict["answers"],
+        usage: result.usage ?? { input_tokens: 0, output_tokens: 0 },
+        latencyMs
+      };
+    }
+
+    // Default evaluation engine: Vercel AI SDK (typesafe-ai/jev on Vercel AI Gateway)
+    const effectiveKey =
+      this.apiKey ||
+      process.env["AI_GATEWAY_API_KEY"] ||
+      process.env["TYPESAFE_API_KEY"] ||
+      process.env["VERCEL_AI_GATEWAY_KEY"];
+
+    const gw = effectiveKey ? createGateway({ apiKey: effectiveKey }) : gateway;
+    const modelName = input.model ?? this.model;
+
+    const evalQuestions = {
+      prompt_injection: {
+        type: "boolean" as const,
+        instructions: DEFAULT_PROMPT_PROFILE[0]!.instructions
+      },
+      jailbreak_intent: {
+        type: "boolean" as const,
+        instructions: DEFAULT_PROMPT_PROFILE[1]!.instructions
+      },
+      harm_intent: {
+        type: "score" as const,
+        instructions: DEFAULT_PROMPT_PROFILE[2]!.instructions,
+        criteria: [
+          "Benign, safe, constructive request.",
+          "Potentially sensitive or dual-use request requiring care.",
+          "Directly harmful, malicious, or illicit request."
+        ]
+      }
+    };
+
+    const res = await (experimental_evaluate as any)({
+      model: (gw as any).evaluation(modelName),
+      state: input.prompt,
+      questions: evalQuestions
+    });
+
+    const elapsed = performance.now() - startedAt;
+    const latencyMs = Math.round(elapsed * 100) / 100;
+
+    const answers: Record<string, JevAnswer> = {
+      prompt_injection: {
+        type: "noul",
+        noul:
+          typeof res.answers?.prompt_injection?.probability === "number"
+            ? res.answers.prompt_injection.probability
+            : res.answers?.prompt_injection?.value
+            ? 1
+            : 0
+      },
+      jailbreak_intent: {
+        type: "noul",
+        noul:
+          typeof res.answers?.jailbreak_intent?.probability === "number"
+            ? res.answers.jailbreak_intent.probability
+            : res.answers?.jailbreak_intent?.value
+            ? 1
+            : 0
+      },
+      harm_intent: {
+        type: "score",
+        score: res.answers?.harm_intent?.score ?? 0,
+        confidence: res.answers?.harm_intent?.confidence ?? 0.95
+      }
+    };
+
+    const { findings, verdict } = evaluatePromptAnswers(answers, mergedThresholds);
+
+    return {
+      verdict,
+      findings,
+      answers: answers as PromptGuardVerdict["answers"],
+      usage: {
+        input_tokens: res.usage?.inputTokens ?? 0,
+        output_tokens: res.usage?.outputTokens ?? 0
+      },
+      latencyMs
     };
   }
 }

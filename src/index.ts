@@ -1,5 +1,6 @@
 export { JevGuard, type JevGuardOptions, type SystemOneClient } from "./guard.js";
 export {
+  DEFAULT_PROMPT_THRESHOLDS,
   DEFAULT_THRESHOLDS,
   severityRank,
   type Finding,
@@ -12,13 +13,21 @@ export {
   type JevUsage,
   type JsonGuardInput,
   type JsonGuardVerdict,
+  type PromptGuardInput,
+  type PromptGuardVerdict,
+  type PromptThresholds,
   type SchemaErrorDetail,
   type Severity,
   type Thresholds,
   type ZodTypeLike
 } from "./types.js";
-export { DEFAULT_PROFILE } from "./questions.js";
-export { evaluateAnswers, isNoulAnswer, isScoreAnswer } from "./verdict.js";
+export { DEFAULT_PROFILE, DEFAULT_PROMPT_PROFILE } from "./questions.js";
+export {
+  evaluateAnswers,
+  evaluatePromptAnswers,
+  isNoulAnswer,
+  isScoreAnswer
+} from "./verdict.js";
 export {
   extractTextForGuard,
   parseJsonSafely,
