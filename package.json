@@ -15,6 +15,9 @@
       "types": "./dist/ai/index.d.ts"
     }
   },
+  "bin": {
+    "jevguard": "./dist/bin.js"
+  },
   "files": [
     "dist"
   ],
@@ -25,7 +28,8 @@
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "guard": "tsx src/bin.ts",
-    "smoke:live": "tsx scripts/live-smoke.ts"
+    "smoke:live": "tsx scripts/live-smoke.ts",
+    "benchmark": "tsx benchmarks/run-benchmark.ts"
   },
   "dependencies": {
     "ai": "^7.0.107"
