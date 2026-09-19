@@ -49,6 +49,7 @@ export interface Finding {
 export interface GuardInput {
   prompt?: string;
   response: string;
+  model?: string;
   thresholds?: Partial<Thresholds>;
 }
 

@@ -57,10 +57,19 @@ export class JevGuard {
 
     const startedAt = performance.now();
 
-    const result = await client.systemOne({
+    const request: {
+      state: { response: string; prompt?: string };
+      questions: Questions;
+      model?: string;
+    } = {
       state,
       questions: DEFAULT_PROFILE as unknown as Questions
-    });
+    };
+    if (input.model !== undefined) {
+      request.model = input.model;
+    }
+
+    const result = await client.systemOne(request as any);
 
     const elapsed = performance.now() - startedAt;
     const latencyMs = Math.round(elapsed * 100) / 100;
