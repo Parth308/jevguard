@@ -84,7 +84,7 @@ export class LlmJudgeEngine implements BenchmarkEngine {
       (isExplicitOpenRouter
         ? "qwen/qwen-2.5-72b-instruct"
         : isExplicitGroq
-        ? "llama-3.3-70b-versatile"
+        ? "qwen/qwen3.8-27b"
         : "qwen-2.5-32b-instruct");
 
     this.name = this.isLive
