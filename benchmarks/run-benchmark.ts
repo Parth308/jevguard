@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { JevGuardEngine } from "./engines/jevguard-engine.js";
+import { LayaEngine } from "./engines/laya-engine.js";
 import { LlmJudgeEngine } from "./engines/llm-judge.js";
 import { RegexFilterEngine } from "./engines/regex-filter.js";
 import { computeBenchmarkMetrics } from "./metrics.js";
@@ -192,6 +193,9 @@ export async function runBenchmarkSuite(cliOptions?: BenchmarkRunOptions): Promi
     llmJudge,
     new JevGuardEngine({
       mode: options.mode
+    }),
+    new LayaEngine({
+      mode: options.mode
     })
   ];
 
@@ -210,8 +214,9 @@ export async function runBenchmarkSuite(cliOptions?: BenchmarkRunOptions): Promi
 
   console.log("\nKey Takeaways:");
   console.log("1. Regex is ultra-fast ($0.00) but suffers from high False Negatives on obfuscated attacks.");
-  console.log("2. LLM-as-a-Judge achieves near-perfect accuracy, but incurs heavy latency (>1,800ms) and high API costs (~$2.70/1k).");
+  console.log("2. LLM-as-a-Judge achieves near-perfect accuracy, but incurs heavy latency (>1,800ms on standard LLMs) and API costs.");
   console.log("3. JevGuard achieves near-judge accuracy (high F1) with ~88ms latency at ~$0.05/1k evals.");
+  console.log("4. Laya (Open-Source System 1) runs non-autoregressively on local GPUs with ~33ms latency at $0.00 cost.");
 }
 
 const isDirectRun =

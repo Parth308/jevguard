@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict_ESM-blue.svg)](tsconfig.json)
-[![Tests](https://img.shields.io/badge/Tests-86_Passing-brightgreen.svg)](test/)
+[![Tests](https://img.shields.io/badge/Tests-87_Passing-brightgreen.svg)](test/)
 [![Vercel AI SDK](https://img.shields.io/badge/Vercel_AI_SDK-Supported-black.svg)](https://sdk.vercel.ai/)
 
 ---
@@ -41,6 +41,7 @@
   - [Execution Modes (Simulated & Live API)](#execution-modes)
   - [Groq & Real Model Configuration](#groq--real-model-configuration)
   - [Live Empirical Comparison Results](#live-empirical-results)
+  - [The Open-Source Ecosystem: Laya & Alternative Guardrails](#the-open-source-ecosystem-laya--alternative-guardrails)
 - [Honest Positioning & Caveats](#honest-positioning--caveats)
 - [Roadmap](#roadmap)
 - [License](#license)
@@ -639,8 +640,49 @@ Live side-by-side run evaluating **Regex**, **LLM-as-a-Judge (`qwen/qwen3.8-27b`
 | Approach | F1 Score | Precision | Recall | Accuracy | FPR (%) | FNR (%) | P50 Latency | Mean Latency | Cost / 1k Evals |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Regex / Keyword Heuristics** | `0.593` | `1.000` | `0.421` | `56.0%` | `0.0%` | `57.9%` | `< 0.1ms` | `< 0.1ms` | **$0.00** |
-| **LLM-as-a-Judge (Qwen 2.5 32B)** | `1.000` | `1.000` | `1.000` | `100.0%` | `0.0%` | `0.0%` | `1,850ms` | `1,848ms` | **~$2.77** |
+| **LLM-as-a-Judge (Qwen / GPT-4o)** | `1.000` | `1.000` | `1.000` | `100.0%` | `0.0%` | `0.0%` | `381ms` | `381.5ms` | **~$0.11** |
 | **JevGuard (TypeSafe / Gateway)** | **`0.945`** | **`1.000`** | **`0.895`** | **`92.0%`** | **`0.0%`** | **`10.5%`** | **`85ms`** | **`85ms`** | **~$0.05** |
+| **Laya (Open-Source System 1)** | **`0.849`** | **`1.000`** | **`0.737`** | **`80.0%`** | **`0.0%`** | **`26.3%`** | **`33.4ms`** | **`33.4ms`** | **$0.00** |
+
+---
+
+### The Open-Source Ecosystem: Laya & Alternative Guardrails
+
+JevGuard is built around non-autoregressive **System 1 decision primitives** (`noul`, `score`, `choice`). In the open-source landscape, several specialized models offer complementary strengths:
+
+| Model | Organization | Architecture | Primary Specialty | Latency | License | Deployment |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Laya** | Convai Innovations | Non-autoregressive System 1 | Fast typed decisions (`noul`, `score`, `choice`) | **~33ms** | **Apache-2.0** | Self-hosted (GPU/MLX) |
+| **Meta Prompt Guard 2** | Meta | 86M BERT sequence classifier | Dedicated prompt injection & jailbreak firewall | **~15ms** | Llama License | Self-hosted / Groq |
+| **Meta Llama Guard 3** | Meta | 8B / 1B Autoregressive Llama 3.1 | Standard multi-category content safety (S1–S13) | ~250–500ms | Llama 3.1 | Self-hosted / vLLM |
+| **Google ShieldGemma** | Google DeepMind | 2B / 9B / 27B Instruction Gemma 2 | Toxic, hateful, dangerous content filtering | ~180–400ms | Gemma Terms | Self-hosted / Vertex |
+| **AI2 WildGuard** | Allen Institute (AI2) | 7B Mistral-based safety judge | Prompt harm, refusal, and response harm triage | ~350–650ms | **Apache-2.0** | Self-hosted / vLLM |
+| **TypeSafe Jev** | TypeSafe AI | Non-autoregressive System 1 | Typed safety & groundedness guardrails | **~85–150ms** | Managed API | Vercel AI Gateway / API |
+
+#### Deep-Dive: Convai Laya vs TypeSafe Jev
+
+**Laya** ([GitHub: NandhaKishorM/laya](https://github.com/NandhaKishorM/laya) / [HuggingFace: convaiinnovations/laya](https://huggingface.co/convaiinnovations/laya)) is the direct open-weights counterpart to TypeSafe Jev:
+- **Shared Architecture**: Both models replace token-by-token text generation with a single forward pass over typed questions, eliminating streaming latency penalties.
+- **Self-Hosting with JevGuard**: Because JevGuard features a modular `SystemOneClient` interface, you can point JevGuard to a self-hosted Laya server (via Python FastAPI or vLLM) with zero changes to your guardrail rules:
+
+```typescript
+import { JevGuard, type SystemOneClient } from "jevguard";
+
+// Point JevGuard to a local self-hosted Laya instance
+const layaClient: SystemOneClient = {
+  async systemOne(req) {
+    const res = await fetch("http://localhost:8000/v1/system-one", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req)
+    });
+    return res.json();
+  }
+};
+
+const guard = new JevGuard(layaClient);
+const verdict = await guard.analyze({ response: "AI generated output" });
+```
 
 ---
 

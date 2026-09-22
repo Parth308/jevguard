@@ -90,6 +90,15 @@ describe("Benchmark Engines Interface", () => {
     expect(result.costEstimateUsd).toBeLessThan(0.001);
   });
 
+  it("laya engine evaluates with sub-40ms latency and zero cost", async () => {
+    const { LayaEngine } = await import("../benchmarks/engines/laya-engine.js");
+    const engine = new LayaEngine();
+    const result = await engine.evaluate(sampleTestCase);
+    expect(result.predictedVerdict).toBe("block");
+    expect(result.latencyMs).toBeLessThanOrEqual(40);
+    expect(result.costEstimateUsd).toBe(0);
+  });
+
   it("formats comparison table cleanly", () => {
     const table = formatComparisonTable([
       {

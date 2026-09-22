@@ -79,10 +79,10 @@ export interface Finding {
 }
 
 export interface GuardInput {
-  prompt?: string;
+  prompt?: string | undefined;
   response: string;
-  model?: string;
-  thresholds?: Partial<Thresholds>;
+  model?: string | undefined;
+  thresholds?: Partial<Thresholds> | undefined;
 }
 
 export interface GuardVerdict {
