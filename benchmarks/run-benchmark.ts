@@ -37,6 +37,7 @@ export interface BenchmarkRunOptions {
   judgeBaseUrl?: string | undefined;
   limit?: number | undefined;
   verbose?: boolean | undefined;
+  delay?: number | undefined;
 }
 
 async function runEngineOnDataset(
@@ -187,6 +188,11 @@ export function parseCliArgs(args: string[]): BenchmarkRunOptions {
       if (!Number.isNaN(num) && num > 0) {
         options.limit = num;
       }
+    } else if (arg.startsWith("--delay=")) {
+      const num = parseInt(arg.slice("--delay=".length), 10);
+      if (!Number.isNaN(num) && num >= 0) {
+        options.delay = num;
+      }
     } else if (arg === "--help" || arg === "-h") {
       console.log(`
 JevGuard Benchmark Suite CLI
@@ -199,6 +205,7 @@ Options:
   --live                   Execute live requests against configured APIs
   --verbose, -v            Show per-category attack bypass samples and failure traces
   --limit=<n>              Limit evaluation to the first N test cases
+  --delay=<ms>             Delay/pacing interval between live calls in ms (default: 2100ms for Groq)
   --judge-model=<name>     Override LLM judge model (default: qwen/qwen3.8-27b on Groq)
   --judge-base-url=<url>   Override OpenAI-compatible base URL (e.g. Ollama, OpenRouter)
   --judge-api-key=<key>    Override API key for judge LLM
@@ -237,7 +244,8 @@ export async function runBenchmarkSuite(cliOptions?: BenchmarkRunOptions): Promi
     mode: options.mode,
     modelName: options.judgeModel,
     apiKey: options.judgeApiKey,
-    baseUrl: options.judgeBaseUrl
+    baseUrl: options.judgeBaseUrl,
+    delayMs: options.delay
   });
 
   if (isLive) {
