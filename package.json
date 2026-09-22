@@ -29,7 +29,8 @@
     "test": "vitest run",
     "guard": "tsx src/bin.ts",
     "smoke:live": "tsx scripts/live-smoke.ts",
-    "benchmark": "tsx benchmarks/run-benchmark.ts"
+    "benchmark": "tsx benchmarks/run-benchmark.ts",
+    "laya:serve": "python scripts/laya_server.py --install"
   },
   "dependencies": {
     "ai": "^7.0.107"

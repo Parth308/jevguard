@@ -684,6 +684,18 @@ const guard = new JevGuard(layaClient);
 const verdict = await guard.analyze({ response: "AI generated output" });
 ```
 
+##### Running the Local Laya Server:
+
+JevGuard includes a built-in local server script that loads Laya and serves the `/system-one` REST endpoint:
+
+```bash
+# Auto-installs laya, fastapi, uvicorn and starts server at http://127.0.0.1:8000
+npm run laya:serve
+
+# Or with Python directly:
+python scripts/laya_server.py --install
+```
+
 ---
 
 ## Honest Positioning & Caveats
