@@ -36,6 +36,7 @@ export interface BenchmarkRunOptions {
   judgeApiKey?: string | undefined;
   judgeBaseUrl?: string | undefined;
   limit?: number | undefined;
+  verbose?: boolean | undefined;
 }
 
 async function runEngineOnDataset(
@@ -109,6 +110,60 @@ export function formatComparisonTable(
   return `${headerLine}\n${separatorLine}\n${rowLines}`;
 }
 
+export function formatCategoryBreakdownTable(
+  results: Array<{ engine: BenchmarkEngine; cases: EvaluatedCase[] }>
+): string {
+  const categories: Array<{ key: BenchmarkTestCase["category"]; label: string }> = [
+    { key: "benign", label: "Benign" },
+    { key: "prompt_injection", label: "Injection" },
+    { key: "jailbreak", label: "Jailbreak" },
+    { key: "harm", label: "Harm" },
+    { key: "subtle_adversarial", label: "Adversarial" },
+    { key: "uncertainty", label: "Uncertainty" },
+    { key: "refusal", label: "Refusal" }
+  ];
+
+  const firstCases = results[0]?.cases ?? [];
+  const categoryTotals: Record<string, number> = {};
+  for (const c of firstCases) {
+    categoryTotals[c.testCase.category] = (categoryTotals[c.testCase.category] ?? 0) + 1;
+  }
+
+  const headers = [
+    "Approach",
+    ...categories.map((c) => `${c.label} (${categoryTotals[c.key] ?? 0})`)
+  ];
+
+  const rows = results.map(({ engine, cases }) => {
+    const cells = [engine.name];
+    for (const cat of categories) {
+      const catCases = cases.filter((c) => c.testCase.category === cat.key);
+      if (catCases.length === 0) {
+        cells.push("N/A");
+        continue;
+      }
+      const passed = catCases.filter((c) => c.isCorrect).length;
+      const pct = Math.round((passed / catCases.length) * 100);
+      cells.push(`${pct}%`);
+    }
+    return cells;
+  });
+
+  const colWidths = headers.map((header, i) => {
+    const maxRowWidth = Math.max(...rows.map((row) => (row[i] ?? "").length));
+    return Math.max(header.length, maxRowWidth) + 2;
+  });
+
+  const pad = (str: string, width: number) => str.padEnd(width);
+  const headerLine = headers.map((h, i) => pad(h, colWidths[i]!)).join(" | ");
+  const separatorLine = colWidths.map((w) => "-".repeat(w)).join("-|-");
+  const rowLines = rows
+    .map((row) => row.map((cell, i) => pad(cell, colWidths[i]!)).join(" | "))
+    .join("\n");
+
+  return `${headerLine}\n${separatorLine}\n${rowLines}`;
+}
+
 export function parseCliArgs(args: string[]): BenchmarkRunOptions {
   const options: BenchmarkRunOptions = {
     mode: "simulated"
@@ -119,6 +174,8 @@ export function parseCliArgs(args: string[]): BenchmarkRunOptions {
       options.mode = "live";
     } else if (arg === "--simulated" || arg === "--mode=simulated") {
       options.mode = "simulated";
+    } else if (arg === "--verbose" || arg === "-v") {
+      options.verbose = true;
     } else if (arg.startsWith("--judge-model=")) {
       options.judgeModel = arg.slice("--judge-model=".length);
     } else if (arg.startsWith("--judge-api-key=")) {
@@ -138,13 +195,14 @@ Usage:
   npm run benchmark -- [options]
 
 Options:
-  --mode=simulated (default)  Run 100% offline using calibrated benchmark simulation
-  --mode=live, --live         Execute live API calls against Gateway/TypeSafe and LLM judge
-  --judge-model=<model>       LLM Judge model name (e.g. "Qwen 2.5 32B-Instruct", "gpt-4o-mini")
-  --judge-api-key=<key>       API key for LLM Judge (defaults to OPENAI_API_KEY / OPENROUTER_API_KEY)
-  --judge-base-url=<url>      Base URL for OpenAI-compatible LLM endpoint
-  --limit=<number>            Limit evaluation to the first N test cases
-  --help, -h                  Display this help menu
+  --simulated              Run deterministic offline calibrated benchmarks (default)
+  --live                   Execute live requests against configured APIs
+  --verbose, -v            Show per-category attack bypass samples and failure traces
+  --limit=<n>              Limit evaluation to the first N test cases
+  --judge-model=<name>     Override LLM judge model (default: qwen/qwen3.8-27b on Groq)
+  --judge-base-url=<url>   Override OpenAI-compatible base URL (e.g. Ollama, OpenRouter)
+  --judge-api-key=<key>    Override API key for judge LLM
+  --help, -h               Show this help message
 `);
       process.exit(0);
     }
@@ -199,18 +257,39 @@ export async function runBenchmarkSuite(cliOptions?: BenchmarkRunOptions): Promi
     })
   ];
 
-  const comparisonResults: Array<{ engine: BenchmarkEngine; metrics: BenchmarkMetrics }> = [];
+  const comparisonResults: Array<{ engine: BenchmarkEngine; metrics: BenchmarkMetrics; cases: EvaluatedCase[] }> = [];
 
   for (const engine of engines) {
     process.stdout.write(`Evaluating ${engine.name} [${dataset.length} cases]... `);
-    const { metrics } = await runEngineOnDataset(engine, dataset);
-    comparisonResults.push({ engine, metrics });
+    const { metrics, cases } = await runEngineOnDataset(engine, dataset);
+    comparisonResults.push({ engine, metrics, cases });
     console.log("Done.");
   }
 
   console.log("\n--- Comparative Evaluation Results ---\n");
   const table = formatComparisonTable(comparisonResults);
   console.log(table);
+
+  console.log("\n--- Category Detection Breakdown (% Correctly Handled) ---\n");
+  const categoryTable = formatCategoryBreakdownTable(comparisonResults);
+  console.log(categoryTable);
+
+  if (options.verbose) {
+    console.log("\n--- Verbose Failure Insights & Bypass Samples ---\n");
+    for (const { engine, cases } of comparisonResults) {
+      const failures = cases.filter((c) => !c.isCorrect);
+      console.log(`[${engine.name}] Total Errors: ${failures.length}/${cases.length}`);
+      for (const f of failures.slice(0, 5)) {
+        const inputSnippet = (f.testCase.input.prompt ? `"${f.testCase.input.prompt}" -> ` : "") + `"${f.testCase.input.response}"`;
+        const truncated = inputSnippet.length > 70 ? `${inputSnippet.slice(0, 67)}...` : inputSnippet;
+        console.log(`  - [${f.testCase.id}] [${f.testCase.category}] Expected: ${f.testCase.expectedVerdict}, Got: ${f.result.predictedVerdict} | ${truncated}`);
+      }
+      if (failures.length > 5) {
+        console.log(`  ... and ${failures.length - 5} more`);
+      }
+      console.log();
+    }
+  }
 
   console.log("\nKey Takeaways:");
   console.log("1. Regex is ultra-fast ($0.00) but suffers from high False Negatives on obfuscated attacks.");
