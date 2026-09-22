@@ -119,7 +119,7 @@ describe("Benchmark Dataset & CLI Configuration", () => {
     const raw = fs.readFileSync(path.resolve(process.cwd(), "benchmarks/dataset.json"), "utf-8");
     const dataset: BenchmarkTestCase[] = JSON.parse(raw);
 
-    expect(dataset.length).toBeGreaterThanOrEqual(50);
+    expect(dataset.length).toBeGreaterThanOrEqual(100);
     for (const tc of dataset) {
       expect(tc.id).toBeDefined();
       expect(["benign", "prompt_injection", "jailbreak", "harm", "subtle_adversarial", "uncertainty", "refusal"]).toContain(tc.category);

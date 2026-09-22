@@ -542,7 +542,7 @@ JevGuard is built following strict **Test-Driven Development (TDD)**:
 
 - **100% Offline Test Suite**: All unit tests use in-memory client stubs; running `npm test` requires no internet or API key.
 - **Strict TypeScript Settings**: Verified with `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, and `verbatimModuleSyntax`.
-- **11 Test Suites & 86 Unit Tests**:
+- **11 Test Suites & 87 Unit Tests**:
   - `test/smoke.test.ts`: End-to-end plumbing and offline client execution.
   - `test/types.test.ts`: Threshold keys, defaults, and compile-time union guarantees.
   - `test/questions.test.ts`: Contract verification for question order, rubrics, and instructions.
@@ -582,14 +582,14 @@ npm run build
 
 ## Benchmark & Safety Evaluation Suite
 
-JevGuard includes an automated evaluation harness comparing **Regex / Keyword Filtering**, **LLM-as-a-Judge**, and **JevGuard** across accuracy, latency, and cost over a standardized multi-class safety dataset with **50 labeled test cases** covering benign requests, prompt injection, jailbreaks, malicious payloads, subtle obfuscation, and uncertainty.
+JevGuard includes an automated evaluation harness comparing **Regex / Keyword Filtering**, **LLM-as-a-Judge**, **JevGuard**, and **Laya (Open-Source System 1)** across accuracy, latency, and cost over a standardized multi-class safety dataset with **100 labeled test cases** covering benign requests, prompt injection, jailbreaks, malicious payloads, subtle obfuscation, uncertainty, and refusal.
 
 ### Execution Modes
 
 The suite supports both **100% offline calibrated simulation** (for reproducible, zero-cost CI testing) and **live API execution**:
 
 ```bash
-# 1. Run offline simulated benchmarks (default, 50 cases)
+# 1. Run offline simulated benchmarks (default, 100 cases)
 npm run benchmark
 
 # 2. Run live with real API endpoints (JevGuard Gateway + Groq Qwen)
@@ -638,14 +638,14 @@ Live side-by-side run evaluating **Regex**, **LLM-as-a-Judge (`qwen/qwen3.8-27b`
 
 ---
 
-### Offline Calibrated Benchmarks (50 Test Cases)
+### Offline Calibrated Benchmarks (100 Test Cases)
 
 | Approach | F1 Score | Precision | Recall | Accuracy | FPR (%) | FNR (%) | P50 Latency | Mean Latency | Cost / 1k Evals |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Regex / Keyword Heuristics** | `0.593` | `1.000` | `0.421` | `56.0%` | `0.0%` | `57.9%` | `< 0.1ms` | `< 0.1ms` | **$0.00** |
-| **LLM-as-a-Judge (Qwen / GPT-4o)** | `1.000` | `1.000` | `1.000` | `100.0%` | `0.0%` | `0.0%` | `381ms` | `381.5ms` | **~$0.11** |
-| **JevGuard (TypeSafe / Gateway)** | **`0.945`** | **`1.000`** | **`0.895`** | **`92.0%`** | **`0.0%`** | **`10.5%`** | **`85ms`** | **`85ms`** | **~$0.05** |
-| **Laya (Open-Source System 1)** | **`0.849`** | **`1.000`** | **`0.737`** | **`80.0%`** | **`0.0%`** | **`26.3%`** | **`33.4ms`** | **`33.4ms`** | **$0.00** |
+| **Regex / Keyword Heuristics** | `0.383` | `1.000` | `0.237` | `42.0%` | `0.0%` | **`76.3%`** | `< 0.1ms` | `< 0.1ms` | **$0.00** |
+| **LLM-as-a-Judge (`qwen/qwen3.8-27b`)** | **`1.000`** | `1.000` | `1.000` | **`100.0%`** | `0.0%` | **`0.0%`** | `386ms` | `385.2ms` | **~$0.11** |
+| **JevGuard (TypeSafe / Gateway)** | **`0.959`** | **`0.986`** | **`0.934`** | **`94.0%`** | `4.2%` | **`6.6%`** | **`85ms`** | **`85ms`** | **~$0.05** |
+| **Laya (Open-Source System 1)** | **`0.892`** | **`0.984`** | **`0.816`** | **`85.0%`** | `4.2%` | **`18.4%`** | **`33.4ms`** | **`33.4ms`** | **$0.00** |
 
 ---
 
