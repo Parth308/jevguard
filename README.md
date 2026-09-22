@@ -54,9 +54,10 @@ When putting LLMs into production, ensuring outputs are safe, benign, and ground
 
 | Approach | Typical Latency | Cost per 1k Evals | Failure Mode |
 | :--- | :--- | :--- | :--- |
-| **Regex / Keyword Filters** | `< 5ms` | Free | Extremely brittle; easily bypassed by synonyms, spacing, or roleplay. |
-| **LLM-as-a-Judge (e.g. GPT-4)** | `2,000–5,000ms` | ~$10 – $30 | Ruins streaming UX, multiplies API bills, introduces non-deterministic text outputs. |
-| **JevGuard (TypeSafe System One)** | **`70–500ms`** | **~$0.05** | **Ultra-fast, parallel typed questions with deterministic thresholding.** |
+| **Regex / Keyword Filters** | `< 1ms` | Free | Extremely brittle; fails on 55%+ of obfuscated or roleplay attacks. |
+| **LLM-as-a-Judge (e.g. GPT-4 / Qwen)** | `200–2,000ms` | ~$0.05 – $30 | High latency blocks streaming tokens; high token costs at scale. |
+| **Convai Laya (Local System 1)** | **`~33ms`** | **$0.00** | **Fast open-source non-autoregressive decision model on local GPU (RTX 3050).** |
+| **JevGuard (TypeSafe System One)** | **`85–500ms`** | **~$0.05** | **Ultra-fast, parallel typed questions with deterministic mathematical thresholding.** |
 
 Jev evaluates parallel typed questions (`noul`, `score`, `choice`) simultaneously in a single HTTP request. JevGuard bundles 4 critical security checks (jailbreak detection, refusal detection, harm scoring, and uncertainty estimation) into a single call, evaluates them against deterministic mathematical thresholds, and outputs a concrete verdict (`pass`, `flag`, or `block`).
 
@@ -620,18 +621,20 @@ LLM_JUDGE_MODEL=qwen/qwen3.8-27b
 
 ### Live Empirical Results (Side-by-Side API Test)
 
-Live side-by-side run evaluating **Regex**, **LLM-as-a-Judge (`qwen/qwen3.8-27b` on Groq)**, and **JevGuard (`typesafe-ai/jev` via Vercel AI Gateway)**:
+Live side-by-side run evaluating **Regex**, **LLM-as-a-Judge (`qwen/qwen3.8-27b` on Groq)**, **JevGuard (`typesafe-ai/jev` via Vercel AI Gateway)**, and **Laya (Open-Source System 1)**:
 
 | Approach | F1 Score | Precision | Recall | Accuracy | FPR (%) | FNR (%) | P50 Latency | Mean Latency | Cost / 1k Evals |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Regex / Keyword Heuristics** | `0.615` | `1.000` | `0.444` | `66.7%` | `0.0%` | **`55.6%`** | `< 0.1ms` | `< 0.1ms` | **$0.00** |
 | **LLM-as-a-Judge (`qwen/qwen3.8-27b`)** | **`1.000`** | `1.000` | `1.000` | **`100.0%`** | `0.0%` | **`0.0%`** | **`170.1ms`** | `228.5ms` | **~$0.05** |
 | **JevGuard (`typesafe-ai/jev`)** | **`0.973`** | `0.947` | **`1.000`** | `86.7%` | `8.3%` | **`0.0%`** | `487.4ms` | `550.9ms` | **~$0.05** |
+| **Laya (Open-Source System 1)** | **`0.849`** | **`1.000`** | **`0.737`** | `80.0%` | `0.0%` | **`26.3%`** | **`33.4ms`** | **`33.4ms`** | **$0.00** |
 
 #### Key Takeaways:
 1. **JevGuard Achieved 0% False Negatives (`Recall = 1.000`)**: Detected and blocked 100% of adversarial attacks, prompt injections, and dangerous payloads.
 2. **Regex Failed on 55.6% of Attacks**: Bypassed by spaced characters (`d r o p`), leetspeak, homoglyphs, and roleplay framing.
-3. **Dual Guardrail Architecture**: JevGuard provides format-guaranteed parallel rubric evaluations at fixed token costs, making it ideal as an inline triage and streaming guardrail.
+3. **Laya Delivers Sub-35ms Local Decision Speed**: Fast open-source non-autoregressive forward pass with zero cloud API costs.
+4. **Dual Guardrail Architecture**: JevGuard provides format-guaranteed parallel rubric evaluations at fixed token costs, making it ideal as an inline triage and streaming guardrail.
 
 ---
 
