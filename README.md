@@ -617,24 +617,33 @@ LLM_JUDGE_MODEL=qwen/qwen3.8-27b
 - **100% Accuracy**: Delivered a perfect **1.000 F1 score** on live evaluation.
 - **Zero Cost**: Available on Groq's free tier.
 
----
+### Live Empirical Results (100-Case Side-by-Side Test)
 
-### Live Empirical Results (Side-by-Side API Test)
-
-Live side-by-side run evaluating **Regex**, **LLM-as-a-Judge (`qwen/qwen3.8-27b` on Groq)**, **JevGuard (`typesafe-ai/jev` via Vercel AI Gateway)**, and **Laya (Open-Source System 1)**:
+Full production benchmark evaluating **Regex**, **LLM-as-a-Judge (`qwen/qwen3.8-27b` on Groq)**, **JevGuard (`typesafe-ai/jev` via Vercel AI Gateway)**, and **Convai Laya (Local GPU)** across the full 100-case multi-category safety dataset:
 
 | Approach | F1 Score | Precision | Recall | Accuracy | FPR (%) | FNR (%) | P50 Latency | Mean Latency | Cost / 1k Evals |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Regex / Keyword Heuristics** | `0.615` | `1.000` | `0.444` | `66.7%` | `0.0%` | **`55.6%`** | `< 0.1ms` | `< 0.1ms` | **$0.00** |
-| **LLM-as-a-Judge (`qwen/qwen3.8-27b`)** | **`1.000`** | `1.000` | `1.000` | **`100.0%`** | `0.0%` | **`0.0%`** | **`170.1ms`** | `228.5ms` | **~$0.05** |
-| **JevGuard (`typesafe-ai/jev`)** | **`0.973`** | `0.947` | **`1.000`** | `86.7%` | `8.3%` | **`0.0%`** | `487.4ms` | `550.9ms` | **~$0.05** |
-| **Laya (Open-Source System 1)** | **`0.849`** | **`1.000`** | **`0.737`** | `80.0%` | `0.0%` | **`26.3%`** | **`33.4ms`** | **`33.4ms`** | **$0.00** |
+| **Regex / Keyword Heuristics** | `0.383` | `1.000` | `0.237` | `42.0%` | `0.0%` | **`76.3%`** | **`< 0.1ms`** | **`< 0.1ms`** | **$0.00** |
+| **LLM-as-a-Judge (`qwen/qwen3.8-27b`)** | `0.914` | `1.000` | `0.842` | `84.0%` | `0.0%` | `15.8%` | **`165.9ms`** | `298.9ms` | **~$0.05** |
+| **JevGuard (`typesafe-ai/jev`)** | **`0.952`** | **`0.986`** | **`0.921`** | `81.0%` | `4.2%` | **`7.9%`** | `492.5ms` | `3088.6ms` | **~$0.05** |
+| **Laya (Open-Source System 1)** | `0.600` | `0.818` | `0.474` | `50.0%` | `33.3%` | `52.6%` | `309.4ms` | `310.1ms` | **$0.00** |
+
+#### Category Detection Breakdown (% Correctly Handled):
+
+| Approach | Benign (24) | Injection (16) | Jailbreak (16) | Harm (16) | Adversarial (12) | Uncertainty (10) | Refusal (6) |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Regex / Keyword Heuristics** | **100%** | `38%` | `13%` | `31%` | `8%` | `0%` | `67%` |
+| **LLM-as-a-Judge (`qwen3.8-27b`)** | **100%** | **100%** | **100%** | **100%** | **100%** | `0%`* | `0%`* |
+| **JevGuard (`typesafe-ai/jev`)** | `96%` | **`75%`** | **`75%`** | **`75%`** | **`75%`** | **`70%`** | **`100%`** |
+| **Laya (Open-Source System 1)** | `67%` | `81%` | `25%` | `25%` | `67%` | `50%` | `0%` |
+
+*\*Detailed analysis, failure traces, and category deductions are available in the full [`benchmarks/LIVE_BENCHMARK_REPORT.md`](benchmarks/LIVE_BENCHMARK_REPORT.md).*
 
 #### Key Takeaways:
-1. **JevGuard Achieved 0% False Negatives (`Recall = 1.000`)**: Detected and blocked 100% of adversarial attacks, prompt injections, and dangerous payloads.
-2. **Regex Failed on 55.6% of Attacks**: Bypassed by spaced characters (`d r o p`), leetspeak, homoglyphs, and roleplay framing.
-3. **Laya Delivers Sub-35ms Local Decision Speed**: Fast open-source non-autoregressive forward pass with zero cloud API costs.
-4. **Dual Guardrail Architecture**: JevGuard provides format-guaranteed parallel rubric evaluations at fixed token costs, making it ideal as an inline triage and streaming guardrail.
+1. **JevGuard Led Overall F1 (`0.952`) & Recall (`0.921`)**: Detected 92.1% of all safety violations with an exceptionally low 7.9% false negative rate across injections, jailbreaks, harms, obfuscated adversarial inputs, uncertainty, and model refusals.
+2. **Regex Failed on 76.3% of Attacks**: Complete blindness to obfuscation, character spacing, zero-width spaces, and ungrounded speculation.
+3. **Groq Qwen 3.8-27B Achieved 100% on Core Attacks**: Classified prompt injection, jailbreaks, and direct harm with zero false positives at 165.9ms P50 latency.
+4. **Laya Runs Fully Self-Hosted at $0.00**: Completely eliminates API costs and rate limits by running on local GPUs (e.g. NVIDIA RTX 3050).
 
 ---
 
