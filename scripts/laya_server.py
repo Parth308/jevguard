@@ -1,8 +1,9 @@
 """
-Laya Local System 1 Server for JevGuard
+Laya Local System 1 Server for JevGuard (with NVIDIA CUDA GPU Support)
 
 Exposes a non-autoregressive "System 1" REST endpoint at http://127.0.0.1:8000/system-one
 compatible with JevGuard's SystemOneClient interface.
+Supports automatic acceleration on NVIDIA GPUs (e.g. GeForce RTX 3050).
 """
 
 import sys
@@ -12,48 +13,95 @@ import time
 
 def check_and_install_deps():
     import subprocess
-    print("[1/2] Installing required packages (laya, fastapi, uvicorn)...")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "laya", "fastapi", "uvicorn"])
-    print("[2/2] Dependencies installed successfully.\n")
+    print("==================================================================")
+    print("  Checking & Installing Laya Dependencies with CUDA Acceleration   ")
+    print("==================================================================")
+
+    # 1. Install PyTorch with CUDA 12.1 wheel for NVIDIA GPU acceleration (RTX 3050, etc.)
+    try:
+        import torch
+        if not torch.cuda.is_available():
+            print("[1/3] PyTorch found but CUDA not active. Installing CUDA 12.1 PyTorch wheel...")
+            subprocess.check_call([
+                sys.executable, "-m", "pip", "install", "--upgrade",
+                "torch", "--index-url", "https://download.pytorch.org/whl/cu121"
+            ])
+        else:
+            print(f"[1/3] PyTorch with CUDA already installed ({torch.cuda.get_device_name(0)}).")
+    except ImportError:
+        print("[1/3] Installing PyTorch with CUDA 12.1 support for NVIDIA GPU...")
+        subprocess.check_call([
+            sys.executable, "-m", "pip", "install",
+            "torch", "--index-url", "https://download.pytorch.org/whl/cu121"
+        ])
+
+    # 2. Install Laya and FastAPI server dependencies
+    print("[2/3] Installing Laya, FastAPI, and Uvicorn...")
+    subprocess.check_call([
+        sys.executable, "-m", "pip", "install", "--upgrade",
+        "laya", "fastapi", "uvicorn"
+    ])
+    print("[3/3] Dependencies installed successfully.\n")
 
 def main():
     parser = argparse.ArgumentParser(description="Run local Laya System 1 Server for JevGuard")
     parser.add_argument("--port", type=int, default=8000, help="Port to listen on (default: 8000)")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="Host (default: 127.0.0.1)")
     parser.add_argument("--model", type=str, default="convaiinnovations/laya", help="HuggingFace model checkpoint")
-    parser.add_argument("--install", action="store_true", help="Auto-install dependencies if missing")
+    parser.add_argument("--device", type=str, default="auto", choices=["auto", "cuda", "cpu"], help="Compute device")
+    parser.add_argument("--install", action="store_true", help="Auto-install dependencies with CUDA support")
     args = parser.parse_args()
 
     # Verify imports
     try:
+        import torch
         import laya
         from fastapi import FastAPI, Request, HTTPException
-        from fastapi.responses import JSONResponse
         import uvicorn
     except ImportError as e:
         if args.install:
             check_and_install_deps()
+            import torch
             import laya
             from fastapi import FastAPI, Request, HTTPException
-            from fastapi.responses import JSONResponse
             import uvicorn
         else:
             print(f"\n[Missing Dependency: {e}]")
-            print("Run with --install to install automatically:")
+            print("Run with --install to install automatically with CUDA support for your RTX 3050:")
             print(f"  {sys.executable} scripts/laya_server.py --install\n")
-            print("Or run manually:")
-            print(f"  pip install laya fastapi uvicorn\n")
+            print("Or install manually:")
+            print("  pip install torch --index-url https://download.pytorch.org/whl/cu121")
+            print("  pip install laya fastapi uvicorn\n")
             sys.exit(1)
+
+    # Determine compute device
+    if args.device == "auto":
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    else:
+        device = args.device
 
     print("==================================================================")
     print(f"  Initializing Convai Laya System 1 Model: {args.model}")
+    if device == "cuda" and torch.cuda.is_available():
+        gpu_name = torch.cuda.get_device_name(0)
+        vram_gb = round(torch.cuda.get_device_properties(0).total_memory / (1024**3), 2)
+        print(f"  Hardware Acceleration: ACTIVE on {gpu_name} ({vram_gb} GB VRAM)")
+    else:
+        print("  Hardware Acceleration: CPU mode (No active CUDA detected)")
     print("==================================================================")
     
     started = time.time()
     try:
-        agent = laya.load(args.model)
+        # Load model on target device
+        try:
+            agent = laya.load(args.model, device=device)
+        except TypeError:
+            agent = laya.load(args.model)
+            if hasattr(agent, "to") and device == "cuda":
+                agent = agent.to(device)
+
         load_time = round((time.time() - started) * 1000)
-        print(f"Model loaded into memory in {load_time}ms.\n")
+        print(f"Model loaded into memory in {load_time}ms on device: {device}.\n")
     except Exception as e:
         print(f"\n[Error loading Laya model]: {e}")
         print("Note: First run will download model weights from Hugging Face.")
@@ -63,7 +111,19 @@ def main():
 
     @app.get("/health")
     async def health():
-        return {"status": "ok", "model": args.model, "engine": "laya-system-1"}
+        gpu_info = None
+        if device == "cuda" and torch.cuda.is_available():
+            gpu_info = {
+                "gpu": torch.cuda.get_device_name(0),
+                "allocated_vram_mb": round(torch.cuda.memory_allocated(0) / (1024**2), 1)
+            }
+        return {
+            "status": "ok",
+            "model": args.model,
+            "engine": "laya-system-1",
+            "device": device,
+            "gpu": gpu_info
+        }
 
     @app.post("/system-one")
     async def system_one(request: Request):
@@ -142,7 +202,8 @@ def main():
                     "input_tokens": len(input_text.split()),
                     "output_tokens": len(answers)
                 },
-                "latencyMs": elapsed_ms
+                "latencyMs": elapsed_ms,
+                "device": device
             }
 
         except Exception as err:
