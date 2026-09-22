@@ -81,7 +81,11 @@ export class LlmJudgeEngine implements BenchmarkEngine {
       process.env["LLM_JUDGE_MODEL"] ??
       process.env["MODEL"] ??
       process.env["OPENAI_MODEL"] ??
-      (isExplicitOpenRouter ? "qwen/qwen-2.5-72b-instruct" : "qwen-2.5-32b-instruct");
+      (isExplicitOpenRouter
+        ? "qwen/qwen-2.5-72b-instruct"
+        : isExplicitGroq
+        ? "llama-3.3-70b-versatile"
+        : "qwen-2.5-32b-instruct");
 
     this.name = this.isLive
       ? `LLM-as-a-Judge (${this.modelName} - Live API)`
@@ -89,9 +93,9 @@ export class LlmJudgeEngine implements BenchmarkEngine {
 
     this.description = "Full sequential LLM judge evaluating safety guidelines via structured text prompting";
     this.realModel = options.realModel;
-    this.offlineSimulatedLatencyMs = options.offlineSimulatedLatencyMs ?? 1850;
-    // Default Qwen 2.5 32B / frontier token pricing: ~$0.015 / 1k output & prompt tokens
-    this.costPer1kTokensUsd = options.costPer1kTokensUsd ?? 0.015;
+    this.offlineSimulatedLatencyMs = options.offlineSimulatedLatencyMs ?? (isExplicitGroq ? 380 : 1850);
+    // Groq pricing (~$0.0006/1k tokens or free tier) vs standard frontier (~$0.015/1k tokens)
+    this.costPer1kTokensUsd = options.costPer1kTokensUsd ?? (isExplicitGroq ? 0.0006 : 0.015);
   }
 
   async evaluate(testCase: BenchmarkTestCase): Promise<EngineResult> {
