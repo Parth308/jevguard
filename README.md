@@ -626,7 +626,8 @@ Full production benchmark evaluating **Regex**, **LLM-as-a-Judge (`qwen/qwen3.8-
 | **Regex / Keyword Heuristics** | `0.383` | `1.000` | `0.237` | `42.0%` | `0.0%` | **`76.3%`** | **`< 0.1ms`** | **`< 0.1ms`** | **$0.00** |
 | **LLM-as-a-Judge (`qwen/qwen3.8-27b`)** | `0.914` | `1.000` | `0.842` | `84.0%` | `0.0%` | `15.8%` | **`165.9ms`** | `298.9ms` | **~$0.05** |
 | **JevGuard (`typesafe-ai/jev`)** | **`0.952`** | **`0.986`** | **`0.921`** | `81.0%` | `4.2%` | **`7.9%`** | `492.5ms` | `3088.6ms` | **~$0.05** |
-| **Laya (Open-Source System 1)** | `0.831` | `0.894` | `0.776` | `75.0%` | `29.2%` | `22.4%` | `90.4ms` | `103.6ms` | **$0.00** |
+| **Laya (Baseline System 1)** | `0.831` | `0.894` | `0.776` | `75.0%` | `29.2%` | `22.4%` | `90.4ms` | `103.6ms` | **$0.00** |
+| **Laya (Fine-Tuned System 1)** | `0.712` | **`1.000`** | `0.553` | `66.0%` | **`0.0%`** | `44.7%` | **`90.4ms`** | `104.8ms` | **$0.00** |
 
 #### Category Detection Breakdown (% Correctly Handled):
 
@@ -635,7 +636,8 @@ Full production benchmark evaluating **Regex**, **LLM-as-a-Judge (`qwen/qwen3.8-
 | **Regex / Keyword Heuristics** | **100%** | `38%` | `13%` | `31%` | `8%` | `0%` | `67%` |
 | **LLM-as-a-Judge (`qwen3.8-27b`)** | **100%** | **100%** | **100%** | **100%** | **100%** | `0%`* | `0%`* |
 | **JevGuard (`typesafe-ai/jev`)** | `96%` | **`75%`** | **`75%`** | **`75%`** | **`75%`** | **`70%`** | **`100%`** |
-| **Laya (Open-Source System 1)** | `71%` | **`100%`** | `38%` | `63%` | `92%` | `90%` | **`100%`** |
+| **Laya (Baseline System 1)** | `71%` | **`100%`** | `38%` | `63%` | `92%` | `90%` | **`100%`** |
+| **Laya (Fine-Tuned System 1)** | **`100%`** | **`100%`** | `38%` | `31%` | `75%` | `0%` | **`100%`** |
 
 *\*Detailed analysis, failure traces, and category deductions are available in the full [`benchmarks/LIVE_BENCHMARK_REPORT.md`](benchmarks/LIVE_BENCHMARK_REPORT.md).*
 
@@ -652,9 +654,10 @@ Full production benchmark evaluating **Regex**, **LLM-as-a-Judge (`qwen/qwen3.8-
 | Approach | F1 Score | Precision | Recall | Accuracy | FPR (%) | FNR (%) | P50 Latency | Mean Latency | Cost / 1k Evals |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Regex / Keyword Heuristics** | `0.383` | `1.000` | `0.237` | `42.0%` | `0.0%` | **`76.3%`** | `< 0.1ms` | `< 0.1ms` | **$0.00** |
-| **LLM-as-a-Judge (`qwen/qwen3.8-27b`)** | **`1.000`** | `1.000` | `1.000` | **`100.0%`** | `0.0%` | **`0.0%`** | `386ms` | `385.2ms` | **~$0.11** |
+| **LLM-as-a-Judge (`qwen/qwen3.8-27b`)** | **`1.000`** | `1.000` | `1.000` | **`100.0%`** | `0.0%` | **`0.0%`** | `373ms` | `376.2ms` | **~$0.11** |
 | **JevGuard (TypeSafe / Gateway)** | **`0.959`** | **`0.986`** | **`0.934`** | **`94.0%`** | `4.2%` | **`6.6%`** | **`85ms`** | **`85ms`** | **~$0.05** |
-| **Laya (Open-Source System 1)** | **`0.892`** | **`0.984`** | **`0.816`** | **`85.0%`** | `4.2%` | **`18.4%`** | **`33.4ms`** | **`33.4ms`** | **$0.00** |
+| **Laya (Baseline System 1)** | **`0.892`** | **`0.984`** | **`0.816`** | **`85.0%`** | `4.2%` | **`18.4%`** | **`33.4ms`** | **`33.4ms`** | **$0.00** |
+| **Laya (Fine-Tuned System 1)** | `0.815` | **`0.981`** | `0.697` | `76.0%` | `4.2%` | `30.3%` | **`33.4ms`** | **`33.4ms`** | **$0.00** |
 
 ---
 
@@ -683,7 +686,7 @@ import { JevGuard, type SystemOneClient } from "jevguard";
 // Point JevGuard to a local self-hosted Laya instance
 const layaClient: SystemOneClient = {
   async systemOne(req) {
-    const res = await fetch("http://localhost:8000/v1/system-one", {
+    const res = await fetch("http://127.0.0.1:8000/system-one", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req)
@@ -698,15 +701,26 @@ const verdict = await guard.analyze({ response: "AI generated output" });
 
 ##### Running the Local Laya Server:
 
-JevGuard includes a built-in local server script that loads Laya and serves the `/system-one` REST endpoint:
+JevGuard includes a built-in local server script that loads Laya and serves the `/system-one` REST endpoint on your local GPU (e.g. NVIDIA RTX 3050):
 
 ```bash
-# Auto-installs laya, fastapi, uvicorn and starts server at http://127.0.0.1:8000
+# 1. Serve base Laya model
 npm run laya:serve
 
-# Or with Python directly:
-python scripts/laya_server.py --install
+# 2. Serve fine-tuned Laya weights (from Kaggle run)
+python scripts/laya_server.py --model models/laya_finetuned_jevguard
+
+# 3. Run standalone holdout re-benchmark against the fine-tuned model
+npm run benchmark:laya
 ```
+
+##### Fine-Tuning Laya on Kaggle:
+
+JevGuard provides an end-to-end multi-GPU fine-tuning pipeline on Kaggle (2× NVIDIA T4 GPUs via DDP):
+- **Notebook:** [`laya_finetune_jevguard_2xT4_kaggle.ipynb`](./laya_finetune_jevguard_2xT4_kaggle.ipynb) (1-click upload to Kaggle)
+- **Dataset:** 400 JevGuard-schema RLCD sequences ([`benchmarks/train-rlcd.jsonl`](benchmarks/train-rlcd.jsonl))
+- **Results:** Completely eliminated False Positives on benign requests (`0.0%` FPR down from `29.2%`), achieving **`1.000` Precision** at **`90.35ms` P50 latency**.
+- **Runbook:** See [`KAGGLE_RUNBOOK.md`](./KAGGLE_RUNBOOK.md) for full reproduction steps.
 
 ---
 

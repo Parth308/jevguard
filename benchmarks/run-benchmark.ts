@@ -261,7 +261,12 @@ export async function runBenchmarkSuite(cliOptions?: BenchmarkRunOptions): Promi
       mode: options.mode
     }),
     new LayaEngine({
-      mode: options.mode
+      mode: options.mode,
+      variant: "baseline"
+    }),
+    new LayaEngine({
+      mode: options.mode,
+      variant: "finetuned"
     })
   ];
 
