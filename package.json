@@ -2,6 +2,20 @@
   "name": "jevguard",
   "version": "0.1.0",
   "description": "Type-safe LLM guardrail middleware powered by Jev (TypeSafe System One).",
+  "license": "MIT",
+  "author": "Parth",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Parth308/jevguard.git"
+  },
+  "keywords": [
+    "guardrails",
+    "llm-security",
+    "prompt-injection",
+    "ai",
+    "vercel-ai-sdk",
+    "typesafe"
+  ],
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
