@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict_ESM-blue.svg)](tsconfig.json)
-[![Tests](https://img.shields.io/badge/Tests-87_Passing-brightgreen.svg)](test/)
+[![Tests](https://img.shields.io/badge/Tests-88_Passing-brightgreen.svg)](test/)
 [![Vercel AI SDK](https://img.shields.io/badge/Vercel_AI_SDK-Supported-black.svg)](https://sdk.vercel.ai/)
 
 ---
@@ -542,7 +542,7 @@ JevGuard is built following strict **Test-Driven Development (TDD)**:
 
 - **100% Offline Test Suite**: All unit tests use in-memory client stubs; running `npm test` requires no internet or API key.
 - **Strict TypeScript Settings**: Verified with `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, and `verbatimModuleSyntax`.
-- **11 Test Suites & 87 Unit Tests**:
+- **11 Test Suites & 88 Unit Tests**:
   - `test/smoke.test.ts`: End-to-end plumbing and offline client execution.
   - `test/types.test.ts`: Threshold keys, defaults, and compile-time union guarantees.
   - `test/questions.test.ts`: Contract verification for question order, rubrics, and instructions.
@@ -553,7 +553,7 @@ JevGuard is built following strict **Test-Driven Development (TDD)**:
   - `test/prompt-guard.test.ts`: Pre-flight intent guard (prompt injection, jailbreak, harm intent).
   - `test/cli.test.ts`: Arg parsing (`--key=value` and `--key value`), `--prompt` / `--response` modes, exit codes.
   - `test/ai.test.ts`: Vercel AI SDK middleware (`wrapGenerate`, `wrapStream`, `guardPrompt: true`, fallback).
-  - `test/benchmark.test.ts`: Metric formulas, dataset schema validation, CLI argument parsing, regex, and LLM judge engines.
+  - `test/benchmark.test.ts`: Metric formulas, dataset schema validation, CLI argument parsing, regex, LLM judge, and fine-tuned Laya engines.
 
 Run the test suite:
 ```bash
@@ -720,7 +720,6 @@ JevGuard provides an end-to-end multi-GPU fine-tuning pipeline on Kaggle (2× NV
 - **Notebook:** [`laya_finetune_jevguard_2xT4_kaggle.ipynb`](./laya_finetune_jevguard_2xT4_kaggle.ipynb) (1-click upload to Kaggle)
 - **Dataset:** 400 JevGuard-schema RLCD sequences ([`benchmarks/train-rlcd.jsonl`](benchmarks/train-rlcd.jsonl))
 - **Results:** Completely eliminated False Positives on benign requests (`0.0%` FPR down from `29.2%`), achieving **`1.000` Precision** at **`90.35ms` P50 latency**.
-- **Runbook:** See [`KAGGLE_RUNBOOK.md`](./KAGGLE_RUNBOOK.md) for full reproduction steps.
 
 ---
 
