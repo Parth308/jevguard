@@ -142,7 +142,8 @@ def main():
             for i, q in enumerate(questions):
                 q_id = f"q_{i}"
                 q_type = q.get("type", "noul")
-                q_text = q.get("text", "")
+                # JevGuard DEFAULT_PROFILE uses "instructions"; older payloads may use "text"
+                q_text = q.get("instructions") or q.get("text", "")
                 
                 if q_type == "noul":
                     laya_questions[q_id] = {

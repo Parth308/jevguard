@@ -18,7 +18,9 @@ This document records the empirical results of evaluating **100 labeled test cas
 | **Regex / Keyword Heuristics** | Rule-based regex pattern matcher | `0.383` | `1.000` | `0.237` | `42.0%` | `0.0%` | **`76.3%`** | **`< 0.1ms`** | **`< 0.1ms`** | **$0.00** |
 | **LLM-as-a-Judge (`qwen3.8-27b`)** | Autoregressive 27B LLM on Groq | `0.914` | `1.000` | `0.842` | `84.0%` | `0.0%` | `15.8%` | **`165.9ms`** | `298.9ms` | **~$0.05** |
 | **JevGuard (`typesafe-ai/jev`)** | Non-autoregressive System 1 Gateway | **`0.952`** | **`0.986`** | **`0.921`** | `81.0%` | `4.2%` | **`7.9%`** | `492.5ms` | `3088.6ms` | **~$0.05** |
-| **Convai Laya** | Self-hosted System 1 on RTX 3050 GPU | `0.600` | `0.818` | `0.474` | `50.0%` | `33.3%` | `52.6%` | `309.4ms` | `310.1ms` | **$0.00** |
+| **Convai Laya** | Self-hosted System 1 on RTX 3050 GPU | `0.831` | `0.894` | `0.776` | `75.0%` | `29.2%` | `22.4%` | `90.4ms` | `103.6ms` | **$0.00** |
+
+> **Laya re-run (post-fix):** Initial live run reported F1 `0.600` due to a server field mismatch (`text` vs `instructions`) that stripped question instructions before inference. After fixing [`scripts/laya_server.py`](../scripts/laya_server.py), Laya re-ran clean at F1 `0.831` (see §4 raw log).
 
 ---
 
@@ -31,7 +33,7 @@ Accuracy rate per category across all 100 labeled test cases:
 | **Regex / Keyword Heuristics** | **100%** | `38%` | `13%` | `31%` | `8%` | `0%` | `67%` |
 | **LLM-as-a-Judge (`qwen3.8-27b`)** | **100%** | **100%** | **100%** | **100%** | **100%** | `0%`* | `0%`* |
 | **JevGuard (`typesafe-ai/jev`)** | `96%` | **`75%`** | **`75%`** | **`75%`** | **`75%`** | **`70%`** | **`100%`** |
-| **Convai Laya (Local GPU)** | `67%` | `81%` | `25%` | `25%` | `67%` | `50%` | `0%` |
+| **Convai Laya (Local GPU)** | `71%` | **`100%`** | `38%` | `63%` | `92%` | `90%` | **`100%`** |
 
 *\*Note on LLM Judge category metrics:*
 - On **Uncertainty**: The LLM judge classified unverified claims (e.g. cancer alkaline water, guaranteed 100x crypto surge) as strict **`block`** rather than **`flag`**. In binary safety evaluation (safe vs unsafe), it caught 100% of uncertainty violations, but in exact multi-class categorization, `block !== flag`.
@@ -62,7 +64,8 @@ Accuracy rate per category across all 100 labeled test cases:
 ### D. Convai Laya: Zero-Cost Self-Hosted System 1
 - **Local Inference:** Fully private, self-hosted on local hardware (tested on NVIDIA GeForce RTX 3050 Laptop GPU).
 - **$0.00 API Cost:** Completely free of cloud provider billing and rate limits.
-- **Trade-off:** High sensitivity to generic phrasing resulted in false flags on certain technical benign queries (GDPR, B-tree indices), yielding 50% accuracy on this 100-case suite.
+- **Post-fix accuracy (F1 0.831):** 100% on injection and refusal; 90%+ on uncertainty and adversarial. Remaining misses concentrate in roleplay-framed jailbreaks (38%) and technical benign false flags (GDPR, B-tree).
+- **Trade-off:** Still weaker than JevGuard/LLM-judge on jailbreak/harm framing; strong free local option when API cost is the constraint.
 
 ---
 
@@ -92,7 +95,7 @@ Approach                                       | F1 Score   | Precision   | Reca
 Regex / Keyword Heuristics                     | 0.383      | 1.000       | 0.237    | 42%        | 0%        | 76.3%     | 0.1ms         | 0.1ms          | $0.000           
 LLM-as-a-Judge (qwen/qwen3.8-27b - Live API)   | 0.914      | 1.000       | 0.842    | 84%        | 0%        | 15.8%     | 165.95ms      | 298.9ms        | $0.050           
 JevGuard (Live Gateway / TypeSafe)             | 0.952      | 0.986       | 0.921    | 81%        | 4.2%      | 7.9%      | 492.5ms       | 3088.6ms       | $0.050           
-Laya (Open-Source System 1 - Convai)           | 0.600      | 0.818       | 0.474    | 50%        | 33.3%     | 52.6%     | 309.45ms      | 310.1ms        | $0.000           
+Laya (Open-Source System 1 - Convai)           | 0.831      | 0.894       | 0.776    | 75%        | 29.2%     | 22.4%     | 90.35ms       | 103.6ms        | $0.000           
 
 --- Category Detection Breakdown (% Correctly Handled) ---
 
@@ -101,11 +104,11 @@ Approach                                       | Benign (24)   | Injection (16) 
 Regex / Keyword Heuristics                     | 100%          | 38%              | 13%              | 31%         | 8%                 | 0%                 | 67%          
 LLM-as-a-Judge (qwen/qwen3.8-27b - Live API)   | 100%          | 100%             | 100%             | 100%        | 100%               | 0%                 | 0%           
 JevGuard (Live Gateway / TypeSafe)             | 96%           | 75%              | 75%              | 75%         | 75%                | 70%                | 100%         
-Laya (Open-Source System 1 - Convai)           | 67%           | 81%              | 25%              | 25%         | 67%                | 50%                | 0%           
+Laya (Open-Source System 1 - Convai)           | 71%           | 100%             | 38%              | 63%         | 92%                | 90%                | 100%          
 
 Key Takeaways:
-1. Regex is ultra-fast ($0.00) but suffers from high False Negatives on obfuscated attacks.
-2. LLM-as-a-Judge achieves near-perfect accuracy, but incurs heavy latency (>1,800ms on standard LLMs) and API costs.
-3. JevGuard achieves near-judge accuracy (high F1) with ~88ms latency at ~$0.05/1k evals.
-4. Laya (Open-Source System 1) runs non-autoregressively on local GPUs with ~33ms latency at $0.00 cost.
+1. Regex is ultra-fast ($0.00, FNR 76.3%) but suffers from high False Negatives on obfuscated attacks.
+2. LLM-as-a-Judge reaches F1 0.914 at 165.9ms P50 on this configuration (provider-dependent; standard LLMs often exceed 1,800ms).
+3. JevGuard leads with F1 0.952 at 492.5ms P50 (~$0.05/1k evals; mean 3088.6ms reflects gateway tail latency).
+4. Laya (Open-Source System 1) runs non-autoregressively on local GPUs at 90.4ms P50 and $0.00 cost (F1 0.831 after server instructions fix).
 ```

@@ -614,7 +614,7 @@ LLM_JUDGE_MODEL=qwen/qwen3.8-27b
 
 #### Why `qwen/qwen3.8-27b` on Groq?
 - **Blazing Speed (170ms P50 latency)**: Other models (like `gpt-oss-safeguard-20b`) spend excessive reasoning tokens before classifying. `qwen/qwen3.8-27b` responds with the single verdict token in ~20ms GPU compute.
-- **100% Accuracy**: Delivered a perfect **1.000 F1 score** on live evaluation.
+- **Strong live accuracy**: Delivered **0.914 F1** on live evaluation, with **100% detection on core attack categories** (injection, jailbreak, harm) and zero false positives.
 - **Zero Cost**: Available on Groq's free tier.
 
 ### Live Empirical Results (100-Case Side-by-Side Test)
@@ -626,7 +626,7 @@ Full production benchmark evaluating **Regex**, **LLM-as-a-Judge (`qwen/qwen3.8-
 | **Regex / Keyword Heuristics** | `0.383` | `1.000` | `0.237` | `42.0%` | `0.0%` | **`76.3%`** | **`< 0.1ms`** | **`< 0.1ms`** | **$0.00** |
 | **LLM-as-a-Judge (`qwen/qwen3.8-27b`)** | `0.914` | `1.000` | `0.842` | `84.0%` | `0.0%` | `15.8%` | **`165.9ms`** | `298.9ms` | **~$0.05** |
 | **JevGuard (`typesafe-ai/jev`)** | **`0.952`** | **`0.986`** | **`0.921`** | `81.0%` | `4.2%` | **`7.9%`** | `492.5ms` | `3088.6ms` | **~$0.05** |
-| **Laya (Open-Source System 1)** | `0.600` | `0.818` | `0.474` | `50.0%` | `33.3%` | `52.6%` | `309.4ms` | `310.1ms` | **$0.00** |
+| **Laya (Open-Source System 1)** | `0.831` | `0.894` | `0.776` | `75.0%` | `29.2%` | `22.4%` | `90.4ms` | `103.6ms` | **$0.00** |
 
 #### Category Detection Breakdown (% Correctly Handled):
 
@@ -635,7 +635,7 @@ Full production benchmark evaluating **Regex**, **LLM-as-a-Judge (`qwen/qwen3.8-
 | **Regex / Keyword Heuristics** | **100%** | `38%` | `13%` | `31%` | `8%` | `0%` | `67%` |
 | **LLM-as-a-Judge (`qwen3.8-27b`)** | **100%** | **100%** | **100%** | **100%** | **100%** | `0%`* | `0%`* |
 | **JevGuard (`typesafe-ai/jev`)** | `96%` | **`75%`** | **`75%`** | **`75%`** | **`75%`** | **`70%`** | **`100%`** |
-| **Laya (Open-Source System 1)** | `67%` | `81%` | `25%` | `25%` | `67%` | `50%` | `0%` |
+| **Laya (Open-Source System 1)** | `71%` | **`100%`** | `38%` | `63%` | `92%` | `90%` | **`100%`** |
 
 *\*Detailed analysis, failure traces, and category deductions are available in the full [`benchmarks/LIVE_BENCHMARK_REPORT.md`](benchmarks/LIVE_BENCHMARK_REPORT.md).*
 

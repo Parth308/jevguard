@@ -299,11 +299,30 @@ export async function runBenchmarkSuite(cliOptions?: BenchmarkRunOptions): Promi
     }
   }
 
+  const regex = comparisonResults.find((r) => r.engine.name.includes("Regex"))?.metrics;
+  const judge = comparisonResults.find((r) => r.engine.name.includes("LLM"))?.metrics;
+  const jev = comparisonResults.find((r) => r.engine.name.includes("JevGuard"))?.metrics;
+  const laya = comparisonResults.find((r) => r.engine.name.includes("Laya"))?.metrics;
+
   console.log("\nKey Takeaways:");
-  console.log("1. Regex is ultra-fast ($0.00) but suffers from high False Negatives on obfuscated attacks.");
-  console.log("2. LLM-as-a-Judge achieves near-perfect accuracy, but incurs heavy latency (>1,800ms on standard LLMs) and API costs.");
-  console.log("3. JevGuard achieves near-judge accuracy (high F1) with ~88ms latency at ~$0.05/1k evals.");
-  console.log("4. Laya (Open-Source System 1) runs non-autoregressively on local GPUs with ~33ms latency at $0.00 cost.");
+  console.log(
+    `1. Regex is ultra-fast ($0.00, FNR ${regex?.falseNegativeRate ?? "?"}%) but suffers from high False Negatives on obfuscated attacks.`
+  );
+  if (judge) {
+    console.log(
+      `2. LLM-as-a-Judge reaches F1 ${judge.f1.toFixed(3)} at ${judge.p50LatencyMs}ms P50 on this configuration (provider-dependent; standard LLMs often exceed 1,800ms).`
+    );
+  }
+  if (jev) {
+    console.log(
+      `3. JevGuard leads with F1 ${jev.f1.toFixed(3)} at ${jev.p50LatencyMs}ms P50 (~$0.05/1k evals; mean ${jev.meanLatencyMs}ms reflects gateway tail latency).`
+    );
+  }
+  if (laya) {
+    console.log(
+      `4. Laya (Open-Source System 1) runs non-autoregressively on local GPUs at ${laya.p50LatencyMs}ms P50 and $0.00 cost.`
+    );
+  }
 }
 
 const isDirectRun =

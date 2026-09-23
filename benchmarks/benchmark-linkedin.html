@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>JevGuard Benchmark</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 1200px;
+    height: 675px;
+    overflow: hidden;
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+    background: #0a0e17;
+    color: #e8ecf4;
+  }
+  .card {
+    width: 1200px;
+    height: 675px;
+    padding: 48px 56px;
+    background:
+      radial-gradient(ellipse 800px 400px at 85% -10%, rgba(56, 189, 248, 0.14), transparent 60%),
+      radial-gradient(ellipse 600px 300px at 10% 110%, rgba(168, 85, 247, 0.12), transparent 55%),
+      linear-gradient(145deg, #0a0e17 0%, #0f1524 50%, #0a0e17 100%);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  .badge-row { display: flex; gap: 12px; align-items: center; margin-bottom: 18px; }
+  .badge {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 6px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    color: #7dd3fc;
+    background: rgba(56, 189, 248, 0.08);
+  }
+  .badge.dim {
+    border-color: rgba(148, 163, 184, 0.3);
+    color: #94a3b8;
+    background: rgba(148, 163, 184, 0.06);
+  }
+  h1 {
+    font-size: 42px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    margin-bottom: 6px;
+    background: linear-gradient(90deg, #f8fafc 0%, #cbd5e1 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .sub {
+    font-size: 17px;
+    color: #94a3b8;
+    margin-bottom: 32px;
+    font-weight: 400;
+  }
+  .sub strong { color: #e2e8f0; font-weight: 600; }
+
+  /* Hero F1 */
+  .hero {
+    display: flex;
+    gap: 40px;
+    margin-bottom: 36px;
+    align-items: stretch;
+  }
+  .hero-main {
+    flex: 1;
+    background: linear-gradient(135deg, rgba(34, 211, 238, 0.12), rgba(59, 130, 246, 0.08));
+    border: 1px solid rgba(34, 211, 238, 0.35);
+    border-radius: 16px;
+    padding: 24px 32px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .hero-label {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #67e8f9;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .hero-num {
+    font-size: 88px;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    color: #f0f9ff;
+    font-variant-numeric: tabular-nums;
+  }
+  .hero-meta {
+    font-size: 15px;
+    color: #94a3b8;
+    margin-top: 8px;
+  }
+  .hero-meta span { color: #e2e8f0; font-weight: 600; }
+
+  .hero-stats {
+    display: flex;
+    gap: 16px;
+  }
+  .stat {
+    flex: 1;
+    min-width: 140px;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 14px;
+    padding: 20px 18px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .stat .v {
+    font-size: 34px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #f8fafc;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat .v.red { color: #f87171; }
+  .stat .v.green { color: #4ade80; }
+  .stat .v.cyan { color: #22d3ee; }
+  .stat .k {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #64748b;
+    font-weight: 600;
+    margin-top: 6px;
+  }
+
+  /* Bar chart */
+  .chart {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    justify-content: center;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 260px 1fr 72px;
+    align-items: center;
+    gap: 16px;
+  }
+  .name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #cbd5e1;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .name .hl { color: #22d3ee; }
+  .track {
+    height: 36px;
+    background: rgba(30, 41, 59, 0.85);
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+    border: 1px solid rgba(51, 65, 85, 0.6);
+  }
+  .fill {
+    height: 100%;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    padding-left: 14px;
+    font-size: 13px;
+    font-weight: 700;
+    color: rgba(15, 23, 42, 0.9);
+    font-variant-numeric: tabular-nums;
+  }
+  .fill.jev {
+    background: linear-gradient(90deg, #06b6d4, #38bdf8 60%, #818cf8);
+    box-shadow: 0 0 24px rgba(56, 189, 248, 0.35);
+  }
+  .fill.llm { background: linear-gradient(90deg, #6366f1, #8b5cf6); color: #f1f5f9; }
+  .fill.laya { background: linear-gradient(90deg, #f59e0b, #fbbf24); color: #1e1b04; }
+  .fill.regex { background: linear-gradient(90deg, #ef4444, #f87171); color: #450a0a; }
+  .score {
+    font-size: 22px;
+    font-weight: 800;
+    color: #f8fafc;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  .score.dim { color: #64748b; font-size: 18px; }
+
+  .footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: auto;
+    padding-top: 20px;
+    border-top: 1px solid rgba(148, 163, 184, 0.12);
+  }
+  .footer .left {
+    font-size: 14px;
+    color: #64748b;
+  }
+  .footer .left b { color: #94a3b8; font-weight: 600; }
+  .footer .right {
+    font-size: 13px;
+    color: #475569;
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, monospace;
+  }
+  .win-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(34, 211, 238, 0.12);
+    border: 1px solid rgba(34, 211, 238, 0.4);
+    color: #67e8f9;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 5px 12px;
+    border-radius: 999px;
+    margin-left: 10px;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge-row">
+      <span class="badge">Live API Benchmark</span>
+      <span class="badge dim">100 labeled cases</span>
+      <span class="badge dim">7 attack categories</span>
+      <span class="badge dim">Sep 22, 2026</span>
+    </div>
+
+    <h1>Prompt-injection guardrails, ranked by F1</h1>
+    <p class="sub">4 architectures · same 100-case dataset · live endpoints · <strong>JevGuard leads</strong></p>
+
+    <div class="hero">
+      <div class="hero-main">
+        <div class="hero-label">JevGuard F1 Score</div>
+        <div class="hero-num">0.952</div>
+        <div class="hero-meta">Recall <span>0.921</span> · Precision <span>0.986</span> · FNR <span>7.9%</span></div>
+      </div>
+      <div class="hero-stats">
+        <div class="stat">
+          <div class="v red">76.3%</div>
+          <div class="k">Regex missed attacks</div>
+        </div>
+        <div class="stat">
+          <div class="v green">~$0.05</div>
+          <div class="k">Cost / 1k evals</div>
+        </div>
+        <div class="stat">
+          <div class="v cyan">492ms</div>
+          <div class="k">P50 latency</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="chart">
+      <div class="row">
+        <div class="name"><span class="hl">JevGuard</span> (typesafe-ai/jev)</div>
+        <div class="track"><div class="fill jev" style="width:95.2%">LEADER</div></div>
+        <div class="score">0.952</div>
+      </div>
+      <div class="row">
+        <div class="name">LLM Judge (Qwen 3.8 · Groq)</div>
+        <div class="track"><div class="fill llm" style="width:91.4%"></div></div>
+        <div class="score">0.914</div>
+      </div>
+      <div class="row">
+        <div class="name">Convai Laya (local RTX 3050)</div>
+        <div class="track"><div class="fill laya" style="width:83%"></div></div>
+        <div class="score">0.831</div>
+      </div>
+      <div class="row">
+        <div class="name">Regex / keyword filters</div>
+        <div class="track"><div class="fill regex" style="width:38.3%"></div></div>
+        <div class="score dim">0.383</div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div class="left">
+        F1 on 100 labeled safety cases <span class="win-pill">▲ highest F1</span>
+        &nbsp;·&nbsp; <b>Regex:</b> free + fast, blind to 76.3% of attacks
+      </div>
+      <div class="right">github.com/Parth308/jevguard</div>
+    </div>
+  </div>
+</body>
+</html>
